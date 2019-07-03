@@ -2,7 +2,7 @@
 autovoting script for Terra oracle by B-Harvest
 
 ## Disclaimer
-The script is highly experimental state, and users should aware that all result from the terra_oracle_voter script is responsible to the user himself/herself.
+The script is in highly experimental state, and users should aware that all result from the terra_oracle_voter script is responsible to the user himself/herself.
 
 ## Language
 Python3
