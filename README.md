@@ -1,11 +1,11 @@
 # terra_oracle_voter
-autovoting script for Terra oracle\\
+autovoting script for Terra oracle\
 
 ## Disclaimer
-The script is highly experimental state, and users should aware that all result from the terra_oracle_voter script is responsible to the user himself/herself.\\
+The script is highly experimental state, and users should aware that all result from the terra_oracle_voter script is responsible to the user himself/herself.\
 
 ## language
-python3\\
+python3\
 
 ## configure(in terra_oracle_vote.py)
 telegram_token = ""\
@@ -20,7 +20,7 @@ fee_denom = "ukrw"\
 fee_gas = "50000"\
 fee_amount = "750"\
 home_cli = "/home/ubuntu/.terracli"\
-chain_id = "columbus-2"\\
+chain_id = "columbus-2"\
 
 ## functions
 1. main feature : prevote and vote on terra oracle.\
