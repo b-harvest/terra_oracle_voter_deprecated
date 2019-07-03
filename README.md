@@ -24,4 +24,4 @@ chain_id = "columbus-2"\
 
 ## functions
 1. main feature : prevote and vote on terra oracle.
-2. risk management feature : when difference between calculated price and latest oracle price diverge more than stop_oracle_trigger, warn user via telegram and exit the program
+2. risk management feature : when percentage difference between calculated price and latest oracle price diverge more than stop_oracle_trigger, warn user via telegram and exit the program
