@@ -1,11 +1,11 @@
 # terra_oracle_voter
-autovoting script for Terra oracle\
+autovoting script for Terra oracle
 
 ## Disclaimer
-The script is highly experimental state, and users should aware that all result from the terra_oracle_voter script is responsible to the user himself/herself.\
+The script is highly experimental state, and users should aware that all result from the terra_oracle_voter script is responsible to the user himself/herself.
 
 ## language
-python3\
+python3
 
 ## configure(in terra_oracle_vote.py)
 telegram_token = ""\
@@ -23,5 +23,5 @@ home_cli = "/home/ubuntu/.terracli"\
 chain_id = "columbus-2"\
 
 ## functions
-1. main feature : prevote and vote on terra oracle.\
+1. main feature : prevote and vote on terra oracle.
 2. risk management feature : when difference between calculated price and latest oracle price diverge more than stop_oracle_trigger, warn user via telegram and exit the program
