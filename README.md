@@ -20,7 +20,7 @@ fee_denom = "ukrw"\
 fee_gas = "50000"\
 fee_amount = "750"\
 home_cli = "/home/ubuntu/.terracli"\
-chain_id = "columbus-2"\
+chain_id = "columbus-2"
 
 ## functions
 1. main feature : prevote and vote on terra oracle.
