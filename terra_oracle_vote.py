@@ -6,7 +6,6 @@ import subprocess
 from multiprocessing import Pool
 import sys
 import hashlib
-# installation required
 import requests
 
 
