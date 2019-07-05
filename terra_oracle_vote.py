@@ -194,7 +194,7 @@ def broadcast_vote(price, salt):
     return result
 
 
-def broadcast_prevote(hash, price, salt):
+def broadcast_prevote(hash):
     msg_list = []
     for denom in active:
         msg_list.append({"type":"oracle/MsgPricePrevote","value":{"hash":str(hash[denom]),"denom":str(denom),"feeder":feeder,"validator":validator}})
@@ -211,6 +211,30 @@ def broadcast_prevote(hash, price, salt):
     time.sleep(0.5)
     print("broadcasting prevote...")
     cmd = "echo " + key_password + " | sudo terracli tx broadcast tx_oracle_prevote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli
+    result = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
+    return result
+
+def broadcast_all(vote_price, vote_salt, prevote_hash):
+    msg_list = []
+    hash_result = {"uusd":"","ukrw":"","usdr":""}
+    for denom in active:
+        msg_list.append({"type":"oracle/MsgPriceVote","value":{"price":str(vote_price[denom]),"salt":str(vote_salt[denom]),"denom":denom,"feeder":feeder,"validator":validator}})
+        hash_result[denom] = get_hash(str(vote_salt[denom]), str(vote_price[denom]), denom, validator)
+    for denom in active:
+        msg_list.append({"type":"oracle/MsgPricePrevote","value":{"hash":str(prevote_hash[denom]),"denom":str(denom),"feeder":feeder,"validator":validator}})
+    tx_json = {"type":"auth/StdTx","value":{"msg":msg_list,"fee":{"amount":[{"denom":fee_denom,"amount":fee_amount}],"gas":fee_gas},"signatures":[],"memo":""}}
+    print("signing vote/prevote...")
+    with open("tx_oracle_vote_prevote.json","w+") as f:
+        f.write(json.dumps(tx_json))
+    time.sleep(0.5)
+    cmd = "echo " + key_password + " | sudo terracli tx sign tx_oracle_vote_prevote.json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli
+    tx_json_signed = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
+    #print(tx_json_signed)
+    with open("tx_oracle_vote_prevote_signed.json","w+") as f:
+        f.write(json.dumps(tx_json_signed))
+    time.sleep(0.5)
+    print("broadcasting vote/prevote...")
+    cmd = "echo " + key_password + " | sudo terracli tx broadcast tx_oracle_vote_prevote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli
     result = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
     return result
 
@@ -243,14 +267,6 @@ while True:
     next_height_round = int(float(height)/round_block_num)
 
     if next_height_round > last_prevoted_round and ((current_round+1)*round_block_num-height == 0 or (current_round+1)*round_block_num-height>3):
-        print(str(height) + " : end of round. vote and prevote for next round!")
-        # vote for last round
-        if last_prevoted_round != current_round:
-            print("we don't have any prevote to vote. skip voting...")
-        else:
-            # broadcast vote for last round
-            broadcast_vote(this_price, this_salt)
-            time.sleep(pause_broadcast)
 
         # get oracle prices
         # get data
@@ -308,8 +324,15 @@ while True:
                             except:
                                 pass
                             sys.exit()
-            # broadcast prevote tx
-            broadcast_prevote(hash_temp,price_temp, salt_temp)
+
+            if last_prevoted_round != current_round:
+                print("we don't have any prevote to vote. only prevote...")
+                broadcast_prevote(hash_temp)
+            else:
+                # broadcast vote/prevote at the same time!
+                print("broadcast vote/prevote at the same time...")
+                broadcast_all(this_price, this_salt, hash_temp)
+
             time.sleep(pause_broadcast)
 
             # update last_prevoted_round
@@ -326,4 +349,3 @@ while True:
         print(str(height) + " : wait " + str((current_round+1)*round_block_num-height) + " blocks until this round ends...")
 
     time.sleep(1)
-
