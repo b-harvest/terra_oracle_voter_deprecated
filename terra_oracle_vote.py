@@ -19,8 +19,8 @@ validator = "" # validator address
 key_name = ""
 key_password = ""
 fee_denom = "ukrw"
-fee_gas = "50000"
-fee_amount = "750"
+fee_gas = "100000"
+fee_amount = "1500"
 home_cli = "/home/ubuntu/.terracli"
 chain_id = "columbus-2"
 
