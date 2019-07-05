@@ -13,7 +13,7 @@ import requests
 telegram_token = ""
 telegram_chat_id = ""
 stop_oracle_trigger = 0.1 # stop oracle when price change exceeds stop_oracle_trigger
-pause_broadcast = 8.0 # pause seconds after each tx broadcasting
+pause_broadcast = 1.0 # pause seconds after each tx broadcasting
 feeder = "" # oracle feeder address
 validator = "" # validator address
 key_name = ""
@@ -151,8 +151,10 @@ def get_swap_price():
             time.sleep(0.5)
     except:
         print("get swap price error!")
-        err_flag = True
-        swap_price = None
+        err_flag = False
+        swap_price = []
+        for item in last_swap_price:
+            swap_price.append(item)
     return err_flag, swap_price
 
 def get_hash(salt, price, denom, validator):
@@ -317,7 +319,11 @@ while True:
             for denom in active:
                 this_price[denom] = price_temp[denom]
                 this_salt[denom] = salt_temp[denom]
+            last_swap_price = []
+            for item in swap_price:
+                last_swap_price.append(item)
     else:
         print(str(height) + " : wait " + str((current_round+1)*round_block_num-height) + " blocks until this round ends...")
 
     time.sleep(1)
+
