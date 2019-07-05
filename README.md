@@ -14,7 +14,7 @@ The server running this script should run terrad with synced status.
 telegram_token = ""\
 telegram_chat_id = ""\
 stop_oracle_trigger = 0.1 # stop oracle when price change exceeds stop_oracle_trigger\
-pause_broadcast = 8.0 # pause time after each tx broadcasting\
+pause_broadcast = 1.0 # pause time after each tx broadcasting\
 feeder = "" # oracle feeder address\
 validator = "" # validator address\
 key_name = "" # local key name for oracle feeder\
