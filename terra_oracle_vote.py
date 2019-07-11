@@ -8,7 +8,6 @@ import sys
 import hashlib
 import requests
 
-
 # user setup
 telegram_token = ""
 telegram_chat_id = ""
@@ -65,6 +64,8 @@ def get_data(source):
         return get_sdr_rate()
     elif source=="get_coinone_luna_price":
         return get_coinone_luna_price()
+    elif source=="get_gopax_luna_price":
+        return get_gopax_luna_price()
     elif source=="get_swap_price":
         return get_swap_price()
 
@@ -133,7 +134,28 @@ def get_coinone_luna_price():
         luna_base = "USDKRW"
         luna_midprice_krw = float(luna_price["midprice"])
     except:
-        print("get luna/krw price error!")
+        print("get coinone luna/krw price error!")
+        err_flag = True
+        luna_price = None
+        luna_base = None
+        luna_midprice_krw = None
+    return err_flag, luna_price, luna_base, luna_midprice_krw
+
+# get coinone luna krw price
+def get_gopax_luna_price():
+    err_flag = False
+    try:
+        # get luna/krw
+        url = "https://api.gopax.co.kr/trading-pairs/LUNA-KRW/book"
+        gopax_result = json.loads(requests.get(url).text)
+        askprice = float(gopax_result["ask"][0][1])
+        bidprice = float(gopax_result["bid"][0][1])
+        midprice = (askprice + bidprice)/2.0
+        luna_price = {"base_currency":"ukrw","exchange":"gopax","askprice":askprice,"bidprice":bidprice,"midprice":midprice}
+        luna_base = "USDKRW"
+        luna_midprice_krw = float(luna_price["midprice"])
+    except:
+        print("get gopax luna/krw price error!")
         err_flag = True
         luna_price = None
         luna_base = None
@@ -272,15 +294,18 @@ while True:
         # get data
         all_err_flag = False
         ts = time.time()
-        p = Pool(4)
-        res_fx, res_sdr, res_coinone, res_swap = p.map(get_data, ["get_fx_rate","get_sdr_rate","get_coinone_luna_price","get_swap_price"])
+        p = Pool(5)
+        res_fx, res_sdr, res_coinone, res_gopax, res_swap = p.map(get_data, ["get_fx_rate","get_sdr_rate","get_coinone_luna_price", "get_gopax_luna_price", "get_swap_price"])
         p.close()
         p.join()
         fx_err_flag, real_fx = res_fx
         sdr_err_flag, sdr_rate = res_sdr
-        coinone_err_flag, luna_price, luna_base, luna_midprice_krw = res_coinone
+        coinone_err_flag, coinone_luna_price, coinone_luna_base, coinone_luna_midprice_krw = res_coinone
+        gopax_err_flag, gopax_luna_price, gopax_luna_base, gopax_luna_midprice_krw = res_gopax
+        luna_midprice_krw = (float(coinone_luna_midprice_krw) + float(gopax_luna_midprice_krw))/2.0
+        luna_base = coinone_luna_base
         swap_price_err_flag, swap_price = res_swap
-        if fx_err_flag or sdr_err_flag or coinone_err_flag or swap_price_err_flag:
+        if fx_err_flag or sdr_err_flag or coinone_err_flag or gopax_err_flag or swap_price_err_flag:
             all_err_flag = True
 
         # reorganize data
@@ -294,7 +319,7 @@ while True:
                     market_price = float(luna_midprice_krw * (real_fx[fx_map[currency]] / real_fx[luna_base]))
                     swap_price_compare.append({"market":currency,"swap_price":swap_price[i],"market_price":market_price})
                     i += 1
-                result = {"index":int(ts/60), "timestamp":ts, "block_height":latest_block_height, "block_time":latest_block_time,"swap_price_compare":swap_price_compare, "real_fx":real_fx, "luna_price_list":[luna_price]}
+                result = {"index":int(ts/60), "timestamp":ts, "block_height":latest_block_height, "block_time":latest_block_time,"swap_price_compare":swap_price_compare, "real_fx":real_fx, "luna_price_list":[coinone_luna_price,gopax_luna_price]}
             except:
                 print("reorganize data error!")
                 all_err_flag = True
