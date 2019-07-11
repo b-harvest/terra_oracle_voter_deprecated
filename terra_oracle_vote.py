@@ -302,8 +302,20 @@ while True:
         sdr_err_flag, sdr_rate = res_sdr
         coinone_err_flag, coinone_luna_price, coinone_luna_base, coinone_luna_midprice_krw = res_coinone
         gopax_err_flag, gopax_luna_price, gopax_luna_base, gopax_luna_midprice_krw = res_gopax
-        luna_midprice_krw = (float(coinone_luna_midprice_krw) + float(gopax_luna_midprice_krw))/2.0
-        luna_base = coinone_luna_base
+        if abs(1.0 - float(gopax_luna_midprice_krw)/float(coinone_luna_midprice_krw)) > stop_oracle_trigger:
+            alarm_content = denom + " market price diversion at height " + str(height) + "! coinone_price:" + str("{0:.1f}".format(coinone_luna_midprice_krw)) + ", gopax_price:" + str("{0:.1f}".format(gopax_luna_midprice_krw))
+            alarm_content += "(percent_diff:" + str("{0:.4f}".format((coinone_luna_midprice_krw/gopax_luna_midprice_krw-1.0)*100.0)) + "%)"
+            print(alarm_content)
+            try:
+                requestURL = "https://api.telegram.org/bot" + str(telegram_token) + "/sendMessage?chat_id=" + telegram_chat_id + "&text="
+                requestURL = requestURL + str(alarm_content)
+                response = requests.get(requestURL, timeout=1)
+            except:
+                pass
+            sys.exit()
+        else:
+            luna_midprice_krw = (float(coinone_luna_midprice_krw)*8.0 + float(gopax_luna_midprice_krw)*2.0)/10.0
+            luna_base = coinone_luna_base
         swap_price_err_flag, swap_price = res_swap
         if fx_err_flag or sdr_err_flag or coinone_err_flag or gopax_err_flag or swap_price_err_flag:
             all_err_flag = True
