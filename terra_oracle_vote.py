@@ -5,27 +5,30 @@ import time
 import subprocess
 from multiprocessing import Pool
 import sys
-import hashlib
+# installation required
 import requests
+import hashlib
 
 # user setup
 telegram_token = ""
 telegram_chat_id = ""
-stop_oracle_trigger = 0.1 # stop oracle when price change exceeds stop_oracle_trigger
-pause_broadcast = 1.0 # pause seconds after each tx broadcasting
+stop_oracle_trigger_recent_diverge = 0.1 # stop oracle when price change exceeds stop_oracle_trigger
+stop_oracle_trigger_exchange_diverge = 0.1 # stop oracle when price change exceeds stop_oracle_trigger
+pause_broadcast = 1.0
 feeder = "" # oracle feeder address
-validator = "" # validator address
-key_name = ""
-key_password = ""
+validator = "" # validator operator address
+key_name = "" # key name
+key_password = "" # key password
 fee_denom = "ukrw"
 fee_gas = "100000"
 fee_amount = "1500"
 home_cli = "/home/ubuntu/.terracli"
-chain_id = "columbus-2"
 
 # parameters
 fx_map = {"uusd":"USDUSD","ukrw":"USDKRW","usdr":"USDSDR"}
-active = ["uusd","ukrw","usdr"]
+active_candidate = ["uusd","ukrw","usdr"]
+hardfix_active_set = [] # hardfix the active set. when [], it automatically includes only available denoms
+chain_id = "columbus-2"
 round_block_num = 12.0
 
 # set last update time
@@ -165,18 +168,16 @@ def get_gopax_luna_price():
 # get swap price
 def get_swap_price():
     err_flag = False
-    try:
-        swap_price = []
-        for currency in active:
+    swap_price = []
+    for currency in active:
+        try:
             cmd = "sudo terracli query oracle price --denom " + currency + " --output json --chain-id " + chain_id
             swap_price.append(float(json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))["price"]))
-            time.sleep(0.5)
-    except:
-        print("get swap price error!")
-        err_flag = False
-        swap_price = []
-        for item in last_swap_price:
-            swap_price.append(item)
+        except:
+            print("get swap price error!")
+            swap_price.append(0.00001)
+        time.sleep(0.5)
+
     return err_flag, swap_price
 
 def get_hash(salt, price, denom, validator):
@@ -192,29 +193,6 @@ def get_salt(string):
     except:
         result = False
     return result
-
-def broadcast_vote(price, salt):
-    msg_list = []
-    hash_result = {"uusd":"","ukrw":"","usdr":""}
-    for denom in active:
-        msg_list.append({"type":"oracle/MsgPriceVote","value":{"price":str(price[denom]),"salt":str(salt[denom]),"denom":denom,"feeder":feeder,"validator":validator}})
-        hash_result[denom] = get_hash(str(salt[denom]), str(price[denom]), denom, validator)
-    tx_json = {"type":"auth/StdTx","value":{"msg":msg_list,"fee":{"amount":[{"denom":fee_denom,"amount":fee_amount}],"gas":fee_gas},"signatures":[],"memo":""}}
-    print("signing vote...")
-    with open("tx_oracle_vote.json","w+") as f:
-        f.write(json.dumps(tx_json))
-    time.sleep(0.5)
-    cmd = "echo " + key_password + " | sudo terracli tx sign tx_oracle_vote.json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli
-    tx_json_signed = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
-    #print(tx_json_signed)
-    with open("tx_oracle_vote_signed.json","w+") as f:
-        f.write(json.dumps(tx_json_signed))
-    time.sleep(0.5)
-    print("broadcasting vote...")
-    cmd = "echo " + key_password + " | sudo terracli tx broadcast tx_oracle_vote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli
-    result = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
-    return result
-
 
 def broadcast_prevote(hash):
     msg_list = []
@@ -290,7 +268,20 @@ while True:
 
     if next_height_round > last_prevoted_round and ((current_round+1)*round_block_num-height == 0 or (current_round+1)*round_block_num-height>3):
 
-        # get oracle prices
+        # get active set of denoms
+        if len(hardfix_active_set) == 0:
+            active = []
+            for currency in active_candidate:
+                cmd = "sudo terracli query oracle price --denom " + currency + " --output json --chain-id " + chain_id
+                try:
+                    test_denom_price = float(json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))["price"])
+                    active.append(currency)
+                except:
+                    pass
+        else:
+            active = hardfix_active_set
+        print("active set : " + str(active))
+
         # get data
         all_err_flag = False
         ts = time.time()
@@ -302,7 +293,7 @@ while True:
         sdr_err_flag, sdr_rate = res_sdr
         coinone_err_flag, coinone_luna_price, coinone_luna_base, coinone_luna_midprice_krw = res_coinone
         gopax_err_flag, gopax_luna_price, gopax_luna_base, gopax_luna_midprice_krw = res_gopax
-        if abs(1.0 - float(gopax_luna_midprice_krw)/float(coinone_luna_midprice_krw)) > stop_oracle_trigger:
+        if abs(1.0 - float(gopax_luna_midprice_krw)/float(coinone_luna_midprice_krw)) > stop_oracle_trigger_exchange_diverge:
             alarm_content = denom + " market price diversion at height " + str(height) + "! coinone_price:" + str("{0:.1f}".format(coinone_luna_midprice_krw)) + ", gopax_price:" + str("{0:.1f}".format(gopax_luna_midprice_krw))
             alarm_content += "(percent_diff:" + str("{0:.4f}".format((coinone_luna_midprice_krw/gopax_luna_midprice_krw-1.0)*100.0)) + "%)"
             print(alarm_content)
@@ -314,7 +305,7 @@ while True:
                 pass
             sys.exit()
         else:
-            luna_midprice_krw = (float(coinone_luna_midprice_krw)*8.0 + float(gopax_luna_midprice_krw)*2.0)/10.0
+            luna_midprice_krw = (float(coinone_luna_midprice_krw)*5.0 + float(gopax_luna_midprice_krw)*5.0)/10.0
             luna_base = coinone_luna_base
         swap_price_err_flag, swap_price = res_swap
         if fx_err_flag or sdr_err_flag or coinone_err_flag or gopax_err_flag or swap_price_err_flag:
@@ -344,7 +335,7 @@ while True:
             for denom in active:
                 for prices in result["swap_price_compare"]:
                     if prices["market"] == denom:
-                        if abs(prices["market_price"]/prices["swap_price"]-1.0) <= stop_oracle_trigger:
+                        if abs(prices["market_price"]/prices["swap_price"]-1.0) <= stop_oracle_trigger_recent_diverge or len(hardfix_active_set) > 0:
                             print("prevoting " + denom + " : " + str(prices["market_price"]) + "(percent_change:" + str("{0:.4f}".format((prices["market_price"]/prices["swap_price"]-1.0)*100.0)) + "%)")
                             salt_temp[denom] = get_salt(str(time.time()))
                             price_temp[denom] = str("{0:.18f}".format(float(prices["market_price"])))
