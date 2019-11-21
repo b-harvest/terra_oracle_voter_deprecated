@@ -13,15 +13,16 @@ The server running this script should run terrad with synced status.
 ## Configure(in terra_oracle_vote.py)
 telegram_token = ""\
 telegram_chat_id = ""\
-stop_oracle_trigger = 0.1 # stop oracle when price change exceeds stop_oracle_trigger\
+stop_oracle_trigger_recent_diverge = 0.1 # stop oracle when price change exceeds stop_oracle_trigger\
+stop_oracle_trigger_exchange_diverge = 0.1 # stop oracle when price change exceeds stop_oracle_trigger\
 pause_broadcast = 1.0 # pause time after each tx broadcasting\
 feeder = "" # oracle feeder address\
-validator = "" # validator address\
-key_name = "" # local key name for oracle feeder\
-key_password = "" # local key password for oracle feeder\
+validator = "" # validator operator address\
+key_name = "" # key name\
+key_password = "" # key password\
 fee_denom = "ukrw"\
-fee_gas = "50000"\
-fee_amount = "750"\
+fee_gas = "100000"\
+fee_amount = "1500"\
 home_cli = "/home/ubuntu/.terracli"\
 chain_id = "columbus-2"
 
