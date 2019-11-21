@@ -25,9 +25,9 @@ fee_amount = "1500"
 home_cli = "/home/ubuntu/.terracli"
 
 # parameters
-fx_map = {"uusd":"USDUSD","ukrw":"USDKRW","usdr":"USDSDR"}
-active_candidate = ["uusd","ukrw","usdr"]
-hardfix_active_set = [] # hardfix the active set. when [], it automatically includes only available denoms
+fx_map = {"uusd":"USDUSD","ukrw":"USDKRW","usdr":"USDSDR","umnt":"USDMNT"}
+active_candidate = ["uusd","ukrw","usdr","umnt"]
+hardfix_active_set = [] # hardfix the active set. does not care about stop_oracle_trigger_recent_diverge
 chain_id = "columbus-2"
 round_block_num = 12.0
 
@@ -37,7 +37,7 @@ last_height = 0
 def get_current_prevotes(denom):
     try:
         # get block height
-        cmd = "sudo terracli query oracle prevotes --denom " + denom + " --output json --chain-id " + chain_id
+        cmd = "sudo /home/ubuntu/go/bin/terracli query oracle prevotes --denom " + denom + " --output json --chain-id " + chain_id
         prevotes = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
         if prevotes["prevotes"] == None:
             return []
@@ -50,7 +50,7 @@ def get_current_prevotes(denom):
 def get_current_votes(denom):
     try:
         # get block height
-        cmd = "sudo terracli query oracle votes --denom " + denom + " --output json --chain-id " + chain_id
+        cmd = "sudo /home/ubuntu/go/bin/terracli query oracle votes --denom " + denom + " --output json --chain-id " + chain_id
         votes = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
         if votes["votes"] == None:
             return []
@@ -77,7 +77,7 @@ def get_latest_block():
     err_flag = False
     try:
         # get block height
-        cmd = "sudo terracli status"
+        cmd = "sudo /home/ubuntu/go/bin/terracli status"
         status = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
         latest_block_height = int(status["sync_info"]["latest_block_height"])
         latest_block_time = status["sync_info"]["latest_block_time"]
@@ -93,14 +93,15 @@ def get_fx_rate():
     err_flag = False
     try:
         # get currency rate
-        url = "https://www.freeforexapi.com/api/live?pairs=USDUSD,USDKRW,USDEUR,USDCNY,USDJPY"
+        url = "https://www.freeforexapi.com/api/live?pairs=USDUSD,USDKRW,USDEUR,USDCNY,USDJPY,USDMNT"
         api_result = json.loads(requests.get(url).text)
-        real_fx = {"USDUSD":1.0,"USDKRW":1.0,"USDEUR":1.0,"USDCNY":1.0,"USDJPY":1.0,"USDSDR":1.0}
+        real_fx = {"USDUSD":1.0,"USDKRW":1.0,"USDEUR":1.0,"USDCNY":1.0,"USDJPY":1.0,"USDSDR":1.0, "USDMNT":1.0}
         real_fx["USDUSD"] = float(api_result["rates"]["USDUSD"]["rate"])
         real_fx["USDKRW"] = float(api_result["rates"]["USDKRW"]["rate"])
         real_fx["USDEUR"] = float(api_result["rates"]["USDEUR"]["rate"])
         real_fx["USDCNY"] = float(api_result["rates"]["USDCNY"]["rate"])
         real_fx["USDJPY"] = float(api_result["rates"]["USDJPY"]["rate"])
+        real_fx["USDMNT"] = float(api_result["rates"]["USDMNT"]["rate"])
     except:
         print("get currency rate error!")
         err_flag = True
@@ -171,7 +172,7 @@ def get_swap_price():
     swap_price = []
     for currency in active:
         try:
-            cmd = "sudo terracli query oracle price --denom " + currency + " --output json --chain-id " + chain_id
+            cmd = "sudo /home/ubuntu/go/bin/terracli query oracle price --denom " + currency + " --output json --chain-id " + chain_id
             swap_price.append(float(json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))["price"]))
         except:
             print("get swap price error!")
@@ -203,20 +204,22 @@ def broadcast_prevote(hash):
     with open("tx_oracle_prevote.json","w+") as f:
         f.write(json.dumps(tx_json))
     time.sleep(0.5)
-    cmd = "echo " + key_password + " | sudo terracli tx sign tx_oracle_prevote.json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli
+    cmd = "echo " + key_password + " | sudo /home/ubuntu/go/bin/terracli tx sign tx_oracle_prevote.json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli
     tx_json_signed = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
     #print(tx_json_signed)
     with open("tx_oracle_prevote_signed.json","w+") as f:
         f.write(json.dumps(tx_json_signed))
     time.sleep(0.5)
     print("broadcasting prevote...")
-    cmd = "echo " + key_password + " | sudo terracli tx broadcast tx_oracle_prevote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli
+    cmd = "echo " + key_password + " | sudo /home/ubuntu/go/bin/terracli tx broadcast tx_oracle_prevote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli
     result = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
     return result
 
 def broadcast_all(vote_price, vote_salt, prevote_hash):
     msg_list = []
-    hash_result = {"uusd":"","ukrw":"","usdr":""}
+    hash_result = {}
+    for denom in active:
+        hash_result.update({denom:""})
     for denom in active:
         msg_list.append({"type":"oracle/MsgPriceVote","value":{"price":str(vote_price[denom]),"salt":str(vote_salt[denom]),"denom":denom,"feeder":feeder,"validator":validator}})
         hash_result[denom] = get_hash(str(vote_salt[denom]), str(vote_price[denom]), denom, validator)
@@ -227,14 +230,14 @@ def broadcast_all(vote_price, vote_salt, prevote_hash):
     with open("tx_oracle_vote_prevote.json","w+") as f:
         f.write(json.dumps(tx_json))
     time.sleep(0.5)
-    cmd = "echo " + key_password + " | sudo terracli tx sign tx_oracle_vote_prevote.json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli
+    cmd = "echo " + key_password + " | sudo /home/ubuntu/go/bin/terracli tx sign tx_oracle_vote_prevote.json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli
     tx_json_signed = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
     #print(tx_json_signed)
     with open("tx_oracle_vote_prevote_signed.json","w+") as f:
         f.write(json.dumps(tx_json_signed))
     time.sleep(0.5)
     print("broadcasting vote/prevote...")
-    cmd = "echo " + key_password + " | sudo terracli tx broadcast tx_oracle_vote_prevote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli
+    cmd = "echo " + key_password + " | sudo /home/ubuntu/go/bin/terracli tx broadcast tx_oracle_vote_prevote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli
     result = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
     return result
 
@@ -272,7 +275,7 @@ while True:
         if len(hardfix_active_set) == 0:
             active = []
             for currency in active_candidate:
-                cmd = "sudo terracli query oracle price --denom " + currency + " --output json --chain-id " + chain_id
+                cmd = "sudo /home/ubuntu/go/bin/terracli query oracle price --denom " + currency + " --output json --chain-id " + chain_id
                 try:
                     test_denom_price = float(json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))["price"])
                     active.append(currency)
@@ -291,6 +294,7 @@ while True:
         p.join()
         fx_err_flag, real_fx = res_fx
         sdr_err_flag, sdr_rate = res_sdr
+        real_fx["USDSDR"] = sdr_rate
         coinone_err_flag, coinone_luna_price, coinone_luna_base, coinone_luna_midprice_krw = res_coinone
         gopax_err_flag, gopax_luna_price, gopax_luna_base, gopax_luna_midprice_krw = res_gopax
         if abs(1.0 - float(gopax_luna_midprice_krw)/float(coinone_luna_midprice_krw)) > stop_oracle_trigger_exchange_diverge:
@@ -315,7 +319,6 @@ while True:
         if all_err_flag==False:
             try:
                 # get swap price
-                real_fx["USDSDR"] = sdr_rate
                 swap_price_compare = []
                 i = 0
                 for currency in active:
@@ -329,9 +332,14 @@ while True:
 
         # prevote for current round
         if all_err_flag==False:
-            price_temp = {"uusd":0.0,"ukrw":0.0,"usdr":0.0}
-            hash_temp = {"uusd":"","ukrw":"","usdr":""}
-            salt_temp = {"uusd":"","ukrw":"","usdr":""}
+            price_temp = {}
+            hash_temp = {}
+            salt_temp = {}
+            for denom in active:
+                price_temp.update({denom:0.0})
+                hash_temp.update({denom:""})
+                salt_temp.update({denom:""})
+
             for denom in active:
                 for prices in result["swap_price_compare"]:
                     if prices["market"] == denom:
@@ -365,8 +373,11 @@ while True:
 
             # update last_prevoted_round
             last_prevoted_round = next_height_round
-            this_price = {"uusd":0.0,"ukrw":0.0,"usdr":0.0}
-            this_salt = {"uusd":"","ukrw":"","usdr":""}
+            this_price = {}
+            this_salt = {}
+            for denom in active:
+                this_price.update({denom:0.0})
+                this_salt.update({denom:""})
             for denom in active:
                 this_price[denom] = price_temp[denom]
                 this_salt[denom] = salt_temp[denom]
