@@ -24,7 +24,12 @@ fee_denom = "ukrw"\
 fee_gas = "100000"\
 fee_amount = "1500"\
 home_cli = "/home/ubuntu/.terracli"\
-chain_id = "columbus-2"
+
+fx_map = {"uusd":"USDUSD","ukrw":"USDKRW","usdr":"USDSDR","umnt":"USDMNT"}\
+active_candidate = ["uusd","ukrw","usdr","umnt"]\
+hardfix_active_set = [] # hardfix the active set. does not care about stop_oracle_trigger_recent_diverge\
+chain_id = "columbus-2"\
+round_block_num = 12.0
 
 ## Functions
 1. Main feature : prevote and vote on terra oracle.
