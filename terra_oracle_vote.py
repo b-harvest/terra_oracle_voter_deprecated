@@ -387,7 +387,7 @@ while True:
             for denom in active:
                 for prices in result["swap_price_compare"]:
                     if prices["market"] == denom:
-                        // TODO: If prices diverge to much send negative price instead of stopping
+                        # TODO: If prices diverge to much send negative price instead of stopping
                         if abs(prices["market_price"]/prices["swap_price"]-1.0) <= stop_oracle_trigger_recent_diverge or len(hardfix_active_set) > 0:
                             print("prevoting " + denom + " : " + str(prices["market_price"]) + "(percent_change:" + str("{0:.4f}".format((prices["market_price"]/prices["swap_price"]-1.0)*100.0)) + "%)")
                             salt_temp[denom] = get_salt(str(time.time()))
