@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+### WARNING : this script is for terra blockchain with version v0.3.0+ ###
+
 import json
 import time
 import subprocess
@@ -14,17 +16,22 @@ telegram_token = ""
 telegram_chat_id = ""
 stop_oracle_trigger_recent_diverge = 0.1 # stop oracle when price change exceeds stop_oracle_trigger
 stop_oracle_trigger_exchange_diverge = 0.1 # stop oracle when price change exceeds stop_oracle_trigger
+bid_ask_spread_max = 0.05 # vote negative price when bid-ask price is wider than bid_ask_spread_max
 pause_broadcast = 1.0
 feeder = "" # oracle feeder address
-validator = "" # validator operator address
-key_name = "" # key name
-key_password = "" # key password
+validator = "" # validator address
+key_name = ""
+key_password = ""
 fee_denom = "ukrw"
 fee_gas = "150000"
 fee_amount = "1500"
 home_cli = "/home/ubuntu/.terracli"
-node = "tcp://127.0.0.1:26657"
-terracli = "sudo /home/ubuntu/go/bin/terracli"
+node = "tcp://52.78.69.160:26657" # node to broadcast the txs
+terracli = "sudo /home/ubuntu/go/bin/terracli" # path to terracli binary
+rpc_address = "https://soju-lcd.terra.dev/" # rpc to receive swap price information
+coinone_share_default = 0.60 # default coinone weight
+gopax_share_default = 0.20 # default gopax weight
+gdac_share_default = 0.20 # default gdac weight
 
 # parameters
 fx_map = {"uusd":"USDUSD","ukrw":"USDKRW","usdr":"USDSDR","umnt":"USDMNT"}
@@ -38,26 +45,16 @@ last_height = 0
 
 def get_current_prevotes(denom):
     try:
-        # get block height
-        cmd = terracli + " query oracle prevotes --denom " + denom + " --output json --chain-id " + chain_id + " --node " + node
-        prevotes = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
-        if prevotes["prevotes"] == None:
-            return []
-        else:
-            return prevotes["prevotes"]
+        result = json.loads(requests.get(str(rpc_address) + "oracle/denoms/" + str(denom) + "/prevotes").text)
+        return result
     except:
         print("get current prevotes error!")
         return False
 
 def get_current_votes(denom):
     try:
-        # get block height
-        cmd = terracli + " query oracle votes --denom " + denom + " --output json --chain-id " + chain_id + " --node " + node
-        votes = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
-        if votes["votes"] == None:
-            return []
-        else:
-            return votes["votes"]
+        result = json.loads(requests.get(str(rpc_address) + "oracle/denoms/" + str(denom) + "/votes").text)
+        return result
     except:
         print("get current votes error!")
         return False
@@ -80,11 +77,9 @@ def get_data(source):
 def get_latest_block():
     err_flag = False
     try:
-        # get block height
-        cmd = terracli + " status --chain-id " + chain_id + " --node " + node
-        status = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
-        latest_block_height = int(status["sync_info"]["latest_block_height"])
-        latest_block_time = status["sync_info"]["latest_block_time"]
+        result = json.loads(requests.get(str(rpc_address) + "blocks/latest").text)
+        latest_block_height = int(result["block_meta"]["header"]["height"])
+        latest_block_time = result["block_meta"]["header"]["time"]
     except:
         print("get block height error!")
         err_flag = True
@@ -194,19 +189,13 @@ def get_gdac_luna_price():
 # get swap price
 def get_swap_price():
     err_flag = False
-    swap_price = []
-    for currency in active:
-        try:
-            cmd = terracli + " query oracle exchange-rate " + currency + " --output json --chain-id " + chain_id + " --node " + node
-            price = float(subprocess.check_output(cmd,shell=True).decode("utf-8").replace('"', ''))
-            # print (price)
-            swap_price.append(price)
-        except:
-            print("get swap price error!")
-            swap_price.append(0.00001)
-        time.sleep(0.5)
+    try:
+        result = json.loads(requests.get(str(rpc_address) + "oracle/denoms/exchange_rates").text)
+    except:
+        result = []
+        err_flag = True
 
-    return err_flag, swap_price
+    return err_flag, result
 
 def get_hash(salt, price, denom, validator):
     m = hashlib.sha256()
@@ -231,14 +220,14 @@ def broadcast_prevote(hash):
     with open("tx_oracle_prevote.json","w+") as f:
         f.write(json.dumps(tx_json))
     time.sleep(0.5)
-    cmd = "echo " + key_password + " | terracli tx sign tx_oracle_prevote.json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
+    cmd = "echo " + key_password + " | " + terracli + " tx sign tx_oracle_prevote.json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
     tx_json_signed = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
     # print(tx_json_signed)
     with open("tx_oracle_prevote_signed.json","w+") as f:
         f.write(json.dumps(tx_json_signed))
     time.sleep(0.5)
     print("broadcasting prevote...")
-    cmd = "echo " + key_password + " | terracli tx broadcast tx_oracle_prevote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
+    cmd = "echo " + key_password + " | " + terracli + " tx broadcast tx_oracle_prevote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
     result = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
     return result
 
@@ -257,14 +246,14 @@ def broadcast_all(vote_price, vote_salt, prevote_hash):
     with open("tx_oracle_vote_prevote.json","w+") as f:
         f.write(json.dumps(tx_json))
     time.sleep(0.5)
-    cmd = "echo " + key_password + " | terracli tx sign tx_oracle_vote_prevote.json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
+    cmd = "echo " + key_password + " | " + terracli + " tx sign tx_oracle_vote_prevote.json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
     tx_json_signed = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
     # print(tx_json_signed)
     with open("tx_oracle_vote_prevote_signed.json","w+") as f:
         f.write(json.dumps(tx_json_signed))
     time.sleep(0.5)
     print("broadcasting vote/prevote...")
-    cmd = "echo " + key_password + " | terracli tx broadcast tx_oracle_vote_prevote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
+    cmd = "echo " + key_password + " | " + terracli + " tx broadcast tx_oracle_vote_prevote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
     result = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
     return result
 
@@ -299,24 +288,22 @@ while True:
     if next_height_round > last_prevoted_round and ((current_round+1)*round_block_num-height == 0 or (current_round+1)*round_block_num-height>3):
 
         # get active set of denoms
+        res_swap = get_swap_price()
+        swap_price_err_flag, swap_price = res_swap
+        if swap_price["result"] == None: swap_price["result"] = []
         if len(hardfix_active_set) == 0:
             active = []
-            for currency in active_candidate:
-                cmd = terracli + " query oracle exchange-rate " + currency + " --output json --chain-id " + chain_id + " --node " + node
-                try:
-                    test_denom_price = float(subprocess.check_output(cmd, shell=True).decode("utf-8").replace('"', ''))
-                    active.append(currency)
-                except:
-                    pass
+            for denom in swap_price["result"]:
+                active.append(denom["denom"])
         else:
             active = hardfix_active_set
         print("active set : " + str(active))
 
-        # get data
+        # get external data
         all_err_flag = False
         ts = time.time()
-        p = Pool(6)
-        res_fx, res_sdr, res_coinone, res_gopax, res_gdac, res_swap = p.map(get_data, ["get_fx_rate","get_sdr_rate","get_coinone_luna_price", "get_gopax_luna_price", "get_gdac_luna_price", "get_swap_price"])
+        p = Pool(5)
+        res_fx, res_sdr, res_coinone, res_gopax, res_gdac = p.map(get_data, ["get_fx_rate","get_sdr_rate","get_coinone_luna_price", "get_gopax_luna_price", "get_gdac_luna_price"])
         p.close()
         p.join()
         fx_err_flag, real_fx = res_fx
@@ -325,11 +312,12 @@ while True:
         coinone_err_flag, coinone_luna_price, coinone_luna_base, coinone_luna_midprice_krw = res_coinone
         gopax_err_flag, gopax_luna_price, gopax_luna_base, gopax_luna_midprice_krw = res_gopax
         gdac_err_flag, gdac_luna_price, gdac_luna_base, gdac_luna_midprice_krw = res_gdac
-        coinone_share = 0.7
-        gopax_share = 0.15
-        gdac_share = 0.15
+        coinone_share = coinone_share_default
+        gopax_share = gopax_share_default
+        gdac_share = gdac_share_default
 
-        if abs(1.0 - float(gopax_luna_midprice_krw)/float(coinone_luna_midprice_krw)) > stop_oracle_trigger_exchange_diverge:
+        # ignore gopax if it diverge from coinone price or its bid-ask price is wider than bid_ask_spread_max
+        if abs(1.0 - float(gopax_luna_midprice_krw)/float(coinone_luna_midprice_krw)) > stop_oracle_trigger_exchange_diverge or float(gopax_luna_price["askprice"])/float(gopax_luna_price["bidprice"]) - 1 > bid_ask_spread_max:
             gopax_share = 0
             alarm_content = denom + " market price diversion at height " + str(height) + "! coinone_price:" + str("{0:.1f}".format(coinone_luna_midprice_krw)) + ", gopax_price:" + str("{0:.1f}".format(gopax_luna_midprice_krw))
             alarm_content += "(percent_diff:" + str("{0:.4f}".format((coinone_luna_midprice_krw/gopax_luna_midprice_krw-1.0)*100.0)) + "%)"
@@ -340,8 +328,9 @@ while True:
                 response = requests.get(requestURL, timeout=1)
             except:
                 pass
-        
-        if abs(1.0 - float(gdac_luna_midprice_krw)/float(coinone_luna_midprice_krw)) > stop_oracle_trigger_exchange_diverge:
+
+        # ignore gdac if it diverge from coinone price or its bid-ask price is wider than bid_ask_spread_max
+        if abs(1.0 - float(gdac_luna_midprice_krw)/float(coinone_luna_midprice_krw)) > stop_oracle_trigger_exchange_diverge or float(gdac_luna_price["askprice"])/float(gdac_luna_price["bidprice"]) - 1 > bid_ask_spread_max:
             gdac_share = 0
             alarm_content = denom + " market price diversion at height " + str(height) + "! coinone_price:" + str("{0:.1f}".format(coinone_luna_midprice_krw)) + ", gdac_price:" + str("{0:.1f}".format(gdac_luna_midprice_krw))
             alarm_content += "(percent_diff:" + str("{0:.4f}".format((coinone_luna_midprice_krw/gdac_luna_midprice_krw-1.0)*100.0)) + "%)"
@@ -352,23 +341,31 @@ while True:
                 response = requests.get(requestURL, timeout=1)
             except:
                 pass
-
-        luna_midprice_krw = (float(coinone_luna_midprice_krw)*coinone_share + float(gopax_luna_midprice_krw)*gopax_share + float(gdac_luna_midprice_krw)*gdac_share)/(coinone_share+gopax_share+gdac_share)
+        
+        # vote negative price if coinone bid-ask spread is wider than "bid_ask_spread_max"
+        if float(coinone_luna_price["askprice"])/float(coinone_luna_price["bidprice"]) - 1 > bid_ask_spread_max:
+            luna_midprice_krw = -1
+        else:
+            # weighted average
+            luna_midprice_krw = (float(coinone_luna_midprice_krw)*coinone_share + float(gopax_luna_midprice_krw)*gopax_share + float(gdac_luna_midprice_krw)*gdac_share)/(coinone_share+gopax_share+gdac_share)
         luna_base = coinone_luna_base
-        swap_price_err_flag, swap_price = res_swap
+        
         if fx_err_flag or sdr_err_flag or coinone_err_flag or gopax_err_flag or swap_price_err_flag:
             all_err_flag = True
 
         # reorganize data
         if all_err_flag==False:
             try:
-                # get swap price
+                # get swap price / market price
                 swap_price_compare = []
-                i = 0
                 for currency in active:
                     market_price = float(luna_midprice_krw * (real_fx[fx_map[currency]] / real_fx[luna_base]))
-                    swap_price_compare.append({"market":currency,"swap_price":swap_price[i],"market_price":market_price})
-                    i += 1
+                    this_swap_price = 0.00000001
+                    for denom in swap_price["result"]:
+                        if denom["denom"] == currency:
+                            this_swap_price = float(denom["amount"])
+                            break
+                    swap_price_compare.append({"market":currency,"swap_price":this_swap_price,"market_price":market_price})
                 result = {"index":int(ts/60), "timestamp":ts, "block_height":latest_block_height, "block_time":latest_block_time,"swap_price_compare":swap_price_compare, "real_fx":real_fx, "luna_price_list":[coinone_luna_price,gopax_luna_price]}
             except:
                 print("reorganize data error!")
@@ -387,7 +384,6 @@ while True:
             for denom in active:
                 for prices in result["swap_price_compare"]:
                     if prices["market"] == denom:
-                        # TODO: If prices diverge to much send negative price instead of stopping
                         if abs(prices["market_price"]/prices["swap_price"]-1.0) <= stop_oracle_trigger_recent_diverge or len(hardfix_active_set) > 0:
                             print("prevoting " + denom + " : " + str(prices["market_price"]) + "(percent_change:" + str("{0:.4f}".format((prices["market_price"]/prices["swap_price"]-1.0)*100.0)) + "%)")
                             salt_temp[denom] = get_salt(str(time.time()))
@@ -406,6 +402,7 @@ while True:
                                 pass
                             sys.exit()
 
+            print("start voting on height " + str(height+1))
             if last_prevoted_round != current_round:
                 print("we don't have any prevote to vote. only prevote...")
                 broadcast_prevote(hash_temp)
