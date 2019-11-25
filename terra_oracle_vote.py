@@ -231,14 +231,14 @@ def broadcast_prevote(hash):
     with open("tx_oracle_prevote.json","w+") as f:
         f.write(json.dumps(tx_json))
     time.sleep(0.5)
-    cmd = "echo " + key_password + " | terracli tx sign tx_oracle_prevote.json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
+    cmd = "echo " + key_password + " | " + terracli + " tx sign tx_oracle_prevote.json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
     tx_json_signed = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
     # print(tx_json_signed)
     with open("tx_oracle_prevote_signed.json","w+") as f:
         f.write(json.dumps(tx_json_signed))
     time.sleep(0.5)
     print("broadcasting prevote...")
-    cmd = "echo " + key_password + " | terracli tx broadcast tx_oracle_prevote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
+    cmd = "echo " + key_password + " | " + terracli + " tx broadcast tx_oracle_prevote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
     result = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
     return result
 
@@ -257,14 +257,14 @@ def broadcast_all(vote_price, vote_salt, prevote_hash):
     with open("tx_oracle_vote_prevote.json","w+") as f:
         f.write(json.dumps(tx_json))
     time.sleep(0.5)
-    cmd = "echo " + key_password + " | terracli tx sign tx_oracle_vote_prevote.json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
+    cmd = "echo " + key_password + " | " + terracli + " tx sign tx_oracle_vote_prevote.json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
     tx_json_signed = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
     # print(tx_json_signed)
     with open("tx_oracle_vote_prevote_signed.json","w+") as f:
         f.write(json.dumps(tx_json_signed))
     time.sleep(0.5)
     print("broadcasting vote/prevote...")
-    cmd = "echo " + key_password + " | terracli tx broadcast tx_oracle_vote_prevote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
+    cmd = "echo " + key_password + " | " + terracli + " tx broadcast tx_oracle_vote_prevote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
     result = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
     return result
 
