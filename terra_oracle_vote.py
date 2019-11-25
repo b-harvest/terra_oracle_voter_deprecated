@@ -20,16 +20,18 @@ validator = "" # validator operator address
 key_name = "" # key name
 key_password = "" # key password
 fee_denom = "ukrw"
-fee_gas = "100000"
+fee_gas = "150000"
 fee_amount = "1500"
 home_cli = "/home/ubuntu/.terracli"
+node = "tcp://127.0.0.1:26657"
+terracli = "sudo /home/ubuntu/go/bin/terracli"
 
 # parameters
 fx_map = {"uusd":"USDUSD","ukrw":"USDKRW","usdr":"USDSDR","umnt":"USDMNT"}
 active_candidate = ["uusd","ukrw","usdr","umnt"]
 hardfix_active_set = ["uusd","ukrw","usdr","umnt"] # hardfix the active set. does not care about stop_oracle_trigger_recent_diverge
-chain_id = "columbus-2"
-round_block_num = 12.0
+chain_id = "soju-0012"
+round_block_num = 5.0
 
 # set last update time
 last_height = 0
@@ -37,7 +39,7 @@ last_height = 0
 def get_current_prevotes(denom):
     try:
         # get block height
-        cmd = "sudo /home/ubuntu/go/bin/terracli query oracle prevotes --denom " + denom + " --output json --chain-id " + chain_id
+        cmd = terracli + " query oracle prevotes --denom " + denom + " --output json --chain-id " + chain_id + " --node " + node
         prevotes = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
         if prevotes["prevotes"] == None:
             return []
@@ -50,7 +52,7 @@ def get_current_prevotes(denom):
 def get_current_votes(denom):
     try:
         # get block height
-        cmd = "sudo /home/ubuntu/go/bin/terracli query oracle votes --denom " + denom + " --output json --chain-id " + chain_id
+        cmd = terracli + " query oracle votes --denom " + denom + " --output json --chain-id " + chain_id + " --node " + node
         votes = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
         if votes["votes"] == None:
             return []
@@ -79,7 +81,7 @@ def get_latest_block():
     err_flag = False
     try:
         # get block height
-        cmd = "sudo /home/ubuntu/go/bin/terracli status"
+        cmd = terracli + " status --chain-id " + chain_id + " --node " + node
         status = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
         latest_block_height = int(status["sync_info"]["latest_block_height"])
         latest_block_time = status["sync_info"]["latest_block_time"]
@@ -195,8 +197,10 @@ def get_swap_price():
     swap_price = []
     for currency in active:
         try:
-            cmd = "sudo /home/ubuntu/go/bin/terracli query oracle price --denom " + currency + " --output json --chain-id " + chain_id
-            swap_price.append(float(json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))["price"]))
+            cmd = terracli + " query oracle exchange-rate " + currency + " --output json --chain-id " + chain_id + " --node " + node
+            price = float(subprocess.check_output(cmd,shell=True).decode("utf-8").replace('"', ''))
+            # print (price)
+            swap_price.append(price)
         except:
             print("get swap price error!")
             swap_price.append(0.00001)
@@ -221,20 +225,20 @@ def get_salt(string):
 def broadcast_prevote(hash):
     msg_list = []
     for denom in active:
-        msg_list.append({"type":"oracle/MsgPricePrevote","value":{"hash":str(hash[denom]),"denom":str(denom),"feeder":feeder,"validator":validator}})
-    tx_json = {"type":"auth/StdTx","value":{"msg":msg_list,"fee":{"amount":[{"denom":fee_denom,"amount":fee_amount}],"gas":fee_gas},"signatures":[],"memo":""}}
+        msg_list.append({"type":"oracle/MsgExchangeRatePrevote","value":{"hash":str(hash[denom]),"denom":str(denom),"feeder":feeder,"validator":validator}})
+    tx_json = {"type":"core/StdTx","value":{"msg":msg_list,"fee":{"amount":[{"denom":fee_denom,"amount":fee_amount}],"gas":fee_gas},"signatures":[],"memo":""}}
     print("signing prevote...")
     with open("tx_oracle_prevote.json","w+") as f:
         f.write(json.dumps(tx_json))
     time.sleep(0.5)
-    cmd = "echo " + key_password + " | sudo /home/ubuntu/go/bin/terracli tx sign tx_oracle_prevote.json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli
+    cmd = "echo " + key_password + " | terracli tx sign tx_oracle_prevote.json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
     tx_json_signed = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
-    #print(tx_json_signed)
+    # print(tx_json_signed)
     with open("tx_oracle_prevote_signed.json","w+") as f:
         f.write(json.dumps(tx_json_signed))
     time.sleep(0.5)
     print("broadcasting prevote...")
-    cmd = "echo " + key_password + " | sudo /home/ubuntu/go/bin/terracli tx broadcast tx_oracle_prevote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli
+    cmd = "echo " + key_password + " | terracli tx broadcast tx_oracle_prevote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
     result = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
     return result
 
@@ -244,23 +248,23 @@ def broadcast_all(vote_price, vote_salt, prevote_hash):
     for denom in active:
         hash_result.update({denom:""})
     for denom in active:
-        msg_list.append({"type":"oracle/MsgPriceVote","value":{"price":str(vote_price[denom]),"salt":str(vote_salt[denom]),"denom":denom,"feeder":feeder,"validator":validator}})
+        msg_list.append({"type":"oracle/MsgExchangeRateVote","value":{"exchange_rate":str(vote_price[denom]),"salt":str(vote_salt[denom]),"denom":denom,"feeder":feeder,"validator":validator}})
         hash_result[denom] = get_hash(str(vote_salt[denom]), str(vote_price[denom]), denom, validator)
     for denom in active:
-        msg_list.append({"type":"oracle/MsgPricePrevote","value":{"hash":str(prevote_hash[denom]),"denom":str(denom),"feeder":feeder,"validator":validator}})
-    tx_json = {"type":"auth/StdTx","value":{"msg":msg_list,"fee":{"amount":[{"denom":fee_denom,"amount":fee_amount}],"gas":fee_gas},"signatures":[],"memo":""}}
+        msg_list.append({"type":"oracle/MsgExchangeRatePrevote","value":{"hash":str(prevote_hash[denom]),"denom":str(denom),"feeder":feeder,"validator":validator}})
+    tx_json = {"type":"core/StdTx","value":{"msg":msg_list,"fee":{"amount":[{"denom":fee_denom,"amount":fee_amount}],"gas":fee_gas},"signatures":[],"memo":""}}
     print("signing vote/prevote...")
     with open("tx_oracle_vote_prevote.json","w+") as f:
         f.write(json.dumps(tx_json))
     time.sleep(0.5)
-    cmd = "echo " + key_password + " | sudo /home/ubuntu/go/bin/terracli tx sign tx_oracle_vote_prevote.json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli
+    cmd = "echo " + key_password + " | terracli tx sign tx_oracle_vote_prevote.json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
     tx_json_signed = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
-    #print(tx_json_signed)
+    # print(tx_json_signed)
     with open("tx_oracle_vote_prevote_signed.json","w+") as f:
         f.write(json.dumps(tx_json_signed))
     time.sleep(0.5)
     print("broadcasting vote/prevote...")
-    cmd = "echo " + key_password + " | sudo /home/ubuntu/go/bin/terracli tx broadcast tx_oracle_vote_prevote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli
+    cmd = "echo " + key_password + " | terracli tx broadcast tx_oracle_vote_prevote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
     result = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
     return result
 
@@ -298,9 +302,9 @@ while True:
         if len(hardfix_active_set) == 0:
             active = []
             for currency in active_candidate:
-                cmd = "sudo /home/ubuntu/go/bin/terracli query oracle price --denom " + currency + " --output json --chain-id " + chain_id
+                cmd = terracli + " query oracle exchange-rate " + currency + " --output json --chain-id " + chain_id + " --node " + node
                 try:
-                    test_denom_price = float(json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))["price"])
+                    test_denom_price = float(subprocess.check_output(cmd, shell=True).decode("utf-8").replace('"', ''))
                     active.append(currency)
                 except:
                     pass
@@ -383,6 +387,7 @@ while True:
             for denom in active:
                 for prices in result["swap_price_compare"]:
                     if prices["market"] == denom:
+                        // TODO: If prices diverge to much send negative price instead of stopping
                         if abs(prices["market_price"]/prices["swap_price"]-1.0) <= stop_oracle_trigger_recent_diverge or len(hardfix_active_set) > 0:
                             print("prevoting " + denom + " : " + str(prices["market_price"]) + "(percent_change:" + str("{0:.4f}".format((prices["market_price"]/prices["swap_price"]-1.0)*100.0)) + "%)")
                             salt_temp[denom] = get_salt(str(time.time()))
