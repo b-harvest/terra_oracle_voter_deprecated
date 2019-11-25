@@ -27,7 +27,7 @@ home_cli = "/home/ubuntu/.terracli"
 # parameters
 fx_map = {"uusd":"USDUSD","ukrw":"USDKRW","usdr":"USDSDR","umnt":"USDMNT"}
 active_candidate = ["uusd","ukrw","usdr","umnt"]
-hardfix_active_set = [] # hardfix the active set. does not care about stop_oracle_trigger_recent_diverge
+hardfix_active_set = ["uusd","ukrw","usdr","umnt"] # hardfix the active set. does not care about stop_oracle_trigger_recent_diverge
 chain_id = "columbus-2"
 round_block_num = 12.0
 
@@ -69,6 +69,8 @@ def get_data(source):
         return get_coinone_luna_price()
     elif source=="get_gopax_luna_price":
         return get_gopax_luna_price()
+    elif source=="get_gdac_luna_price":
+        return get_gdac_luna_price()
     elif source=="get_swap_price":
         return get_swap_price()
 
@@ -145,17 +147,38 @@ def get_coinone_luna_price():
         luna_midprice_krw = None
     return err_flag, luna_price, luna_base, luna_midprice_krw
 
-# get coinone luna krw price
+# get gopax luna krw price
 def get_gopax_luna_price():
     err_flag = False
     try:
         # get luna/krw
         url = "https://api.gopax.co.kr/trading-pairs/LUNA-KRW/book"
-        gopax_result = json.loads(requests.get(url).text)
-        askprice = float(gopax_result["ask"][0][1])
-        bidprice = float(gopax_result["bid"][0][1])
+        luna_result = json.loads(requests.get(url).text)
+        askprice = float(luna_result["ask"][0][1])
+        bidprice = float(luna_result["bid"][0][1])
         midprice = (askprice + bidprice)/2.0
         luna_price = {"base_currency":"ukrw","exchange":"gopax","askprice":askprice,"bidprice":bidprice,"midprice":midprice}
+        luna_base = "USDKRW"
+        luna_midprice_krw = float(luna_price["midprice"])
+    except:
+        print("get gopax luna/krw price error!")
+        err_flag = True
+        luna_price = None
+        luna_base = None
+        luna_midprice_krw = None
+    return err_flag, luna_price, luna_base, luna_midprice_krw
+
+# get gdac luna krw price
+def get_gdac_luna_price():
+    err_flag = False
+    try:
+        # get luna/krw
+        url = "https://partner.gdac.com/v0.4/public/orderbook?pair=LUNA%2FKRW"
+        luna_result = json.loads(requests.get(url).text)
+        askprice = float(luna_result["ask"][0]["price"])
+        bidprice = float(luna_result["bid"][0]["price"])
+        midprice = (askprice + bidprice)/2.0
+        luna_price = {"base_currency":"ukrw","exchange":"gdac","askprice":askprice,"bidprice":bidprice,"midprice":midprice}
         luna_base = "USDKRW"
         luna_midprice_krw = float(luna_price["midprice"])
     except:
@@ -288,8 +311,8 @@ while True:
         # get data
         all_err_flag = False
         ts = time.time()
-        p = Pool(5)
-        res_fx, res_sdr, res_coinone, res_gopax, res_swap = p.map(get_data, ["get_fx_rate","get_sdr_rate","get_coinone_luna_price", "get_gopax_luna_price", "get_swap_price"])
+        p = Pool(6)
+        res_fx, res_sdr, res_coinone, res_gopax, res_gdac, res_swap = p.map(get_data, ["get_fx_rate","get_sdr_rate","get_coinone_luna_price", "get_gopax_luna_price", "get_gdac_luna_price", "get_swap_price"])
         p.close()
         p.join()
         fx_err_flag, real_fx = res_fx
@@ -297,7 +320,13 @@ while True:
         real_fx["USDSDR"] = sdr_rate
         coinone_err_flag, coinone_luna_price, coinone_luna_base, coinone_luna_midprice_krw = res_coinone
         gopax_err_flag, gopax_luna_price, gopax_luna_base, gopax_luna_midprice_krw = res_gopax
+        gdac_err_flag, gdac_luna_price, gdac_luna_base, gdac_luna_midprice_krw = res_gdac
+        coinone_share = 0.7
+        gopax_share = 0.15
+        gdac_share = 0.15
+
         if abs(1.0 - float(gopax_luna_midprice_krw)/float(coinone_luna_midprice_krw)) > stop_oracle_trigger_exchange_diverge:
+            gopax_share = 0
             alarm_content = denom + " market price diversion at height " + str(height) + "! coinone_price:" + str("{0:.1f}".format(coinone_luna_midprice_krw)) + ", gopax_price:" + str("{0:.1f}".format(gopax_luna_midprice_krw))
             alarm_content += "(percent_diff:" + str("{0:.4f}".format((coinone_luna_midprice_krw/gopax_luna_midprice_krw-1.0)*100.0)) + "%)"
             print(alarm_content)
@@ -307,10 +336,21 @@ while True:
                 response = requests.get(requestURL, timeout=1)
             except:
                 pass
-            sys.exit()
-        else:
-            luna_midprice_krw = (float(coinone_luna_midprice_krw)*5.0 + float(gopax_luna_midprice_krw)*5.0)/10.0
-            luna_base = coinone_luna_base
+        
+        if abs(1.0 - float(gdac_luna_midprice_krw)/float(coinone_luna_midprice_krw)) > stop_oracle_trigger_exchange_diverge:
+            gdac_share = 0
+            alarm_content = denom + " market price diversion at height " + str(height) + "! coinone_price:" + str("{0:.1f}".format(coinone_luna_midprice_krw)) + ", gdac_price:" + str("{0:.1f}".format(gdac_luna_midprice_krw))
+            alarm_content += "(percent_diff:" + str("{0:.4f}".format((coinone_luna_midprice_krw/gdac_luna_midprice_krw-1.0)*100.0)) + "%)"
+            print(alarm_content)
+            try:
+                requestURL = "https://api.telegram.org/bot" + str(telegram_token) + "/sendMessage?chat_id=" + telegram_chat_id + "&text="
+                requestURL = requestURL + str(alarm_content)
+                response = requests.get(requestURL, timeout=1)
+            except:
+                pass
+
+        luna_midprice_krw = (float(coinone_luna_midprice_krw)*coinone_share + float(gopax_luna_midprice_krw)*gopax_share + float(gdac_luna_midprice_krw)*gdac_share)/(coinone_share+gopax_share+gdac_share)
+        luna_base = coinone_luna_base
         swap_price_err_flag, swap_price = res_swap
         if fx_err_flag or sdr_err_flag or coinone_err_flag or gopax_err_flag or swap_price_err_flag:
             all_err_flag = True
