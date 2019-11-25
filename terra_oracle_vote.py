@@ -344,10 +344,10 @@ while True:
         
         # vote negative price if coinone bid-ask spread is wider than "bid_ask_spread_max"
         if float(coinone_luna_price["askprice"])/float(coinone_luna_price["bidprice"]) - 1 > bid_ask_spread_max:
-            luna_midprice_krw = -1
-        else:
-            # weighted average
-            luna_midprice_krw = (float(coinone_luna_midprice_krw)*coinone_share + float(gopax_luna_midprice_krw)*gopax_share + float(gdac_luna_midprice_krw)*gdac_share)/(coinone_share+gopax_share+gdac_share)
+            all_err_flag = True
+
+        # weighted average
+        luna_midprice_krw = (float(coinone_luna_midprice_krw)*coinone_share + float(gopax_luna_midprice_krw)*gopax_share + float(gdac_luna_midprice_krw)*gdac_share)/(coinone_share+gopax_share+gdac_share)
         luna_base = coinone_luna_base
         
         if fx_err_flag or sdr_err_flag or coinone_err_flag or gopax_err_flag or swap_price_err_flag:
@@ -386,10 +386,6 @@ while True:
                     if prices["market"] == denom:
                         if abs(prices["market_price"]/prices["swap_price"]-1.0) <= stop_oracle_trigger_recent_diverge or len(hardfix_active_set) > 0:
                             print("prevoting " + denom + " : " + str(prices["market_price"]) + "(percent_change:" + str("{0:.4f}".format((prices["market_price"]/prices["swap_price"]-1.0)*100.0)) + "%)")
-                            salt_temp[denom] = get_salt(str(time.time()))
-                            price_temp[denom] = str("{0:.18f}".format(float(prices["market_price"])))
-                            hash_temp[denom] = get_hash(salt_temp[denom], price_temp[denom], denom, validator)
-                            break
                         else:
                             alarm_content = denom + " price diversion at height " + str(height) + "! market_price:" + str("{0:.4f}".format(prices["market_price"])) + ", swap_price:" + str("{0:.4f}".format(prices["swap_price"]))
                             alarm_content += "(percent_change:" + str("{0:.4f}".format((prices["market_price"]/prices["swap_price"]-1.0)*100.0)) + "%)"
@@ -400,7 +396,16 @@ while True:
                                 response = requests.get(requestURL, timeout=1)
                             except:
                                 pass
-                            sys.exit()
+                            all_err_flag = True
+
+                        salt_temp[denom] = get_salt(str(time.time()))
+                        # vote negative when all_err_flag == False(any error happened)
+                        if all_err_flag == False:
+                            price_temp[denom] = str("{0:.18f}".format(float(prices["market_price"])))
+                        else:
+                            price_temp[denom] = str("{0:.18f}".format(float(-1)))
+                        hash_temp[denom] = get_hash(salt_temp[denom], price_temp[denom], denom, validator)
+                        break
 
             print("start voting on height " + str(height+1))
             if last_prevoted_round != current_round:
