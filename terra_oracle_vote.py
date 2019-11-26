@@ -32,6 +32,8 @@ rpc_address = "https://soju-lcd.terra.dev/" # rpc to receive swap price informat
 coinone_share_default = 0.60 # default coinone weight
 gopax_share_default = 0.20 # default gopax weight
 gdac_share_default = 0.20 # default gdac weight
+price_divergence_alert = False
+vwma_period = 3 # in minutes
 
 # parameters
 fx_map = {"uusd":"USDUSD","ukrw":"USDKRW","usdr":"USDSDR","umnt":"USDMNT"}
@@ -127,11 +129,26 @@ def get_sdr_rate():
 def get_coinone_luna_price():
     err_flag = False
     try:
-        # get luna/krw
-        url = "https://api.coinone.co.kr/orderbook/?currency=luna&format=json"
-        luna_result = json.loads(requests.get(url).text)
-        askprice = float(luna_result["ask"][0]["price"])
-        bidprice = float(luna_result["bid"][0]["price"])
+        if vwma_period>1:
+            url = "https://tb.coinone.co.kr/api/v1/chart/olhc/?site=coinoneluna&type=1m"
+            luna_result = json.loads(requests.get(url).text)["data"]
+            sum_low_volume = 0
+            sum_high_volume = 0
+            sum_volume = 0
+            for row in luna_result:
+                if len(hist_price) < vwma_period:
+                    sum_low_volume += float(row["Low"])*float(row["Volume"])
+                    sum_high_volume += float(row["High"])*float(row["Volume"])
+                    sum_volume += float(row["Volume"])
+                else:
+                    break
+            askprice = sum_low_volume / sum_volume
+            bidprice = sum_high_volume / sum_volume
+        else:
+            url = "https://api.coinone.co.kr/orderbook/?currency=luna&format=json"
+            luna_result = json.loads(requests.get(url).text)
+            askprice = float(luna_result["ask"][0]["price"])
+            bidprice = float(luna_result["bid"][0]["price"])
         midprice = (askprice + bidprice)/2.0
         luna_price = {"base_currency":"ukrw","exchange":"coinone","askprice":askprice,"bidprice":bidprice,"midprice":midprice}
         luna_base = "USDKRW"
@@ -319,28 +336,30 @@ while True:
         # ignore gopax if it diverge from coinone price or its bid-ask price is wider than bid_ask_spread_max
         if abs(1.0 - float(gopax_luna_midprice_krw)/float(coinone_luna_midprice_krw)) > stop_oracle_trigger_exchange_diverge or float(gopax_luna_price["askprice"])/float(gopax_luna_price["bidprice"]) - 1 > bid_ask_spread_max:
             gopax_share = 0
-            alarm_content = denom + " market price diversion at height " + str(height) + "! coinone_price:" + str("{0:.1f}".format(coinone_luna_midprice_krw)) + ", gopax_price:" + str("{0:.1f}".format(gopax_luna_midprice_krw))
-            alarm_content += "(percent_diff:" + str("{0:.4f}".format((coinone_luna_midprice_krw/gopax_luna_midprice_krw-1.0)*100.0)) + "%)"
-            print(alarm_content)
-            try:
-                requestURL = "https://api.telegram.org/bot" + str(telegram_token) + "/sendMessage?chat_id=" + telegram_chat_id + "&text="
-                requestURL = requestURL + str(alarm_content)
-                response = requests.get(requestURL, timeout=1)
-            except:
-                pass
+            if price_divergence_alert:
+                alarm_content = denom + " market price diversion at height " + str(height) + "! coinone_price:" + str("{0:.1f}".format(coinone_luna_midprice_krw)) + ", gopax_price:" + str("{0:.1f}".format(gopax_luna_midprice_krw))
+                alarm_content += "(percent_diff:" + str("{0:.4f}".format((coinone_luna_midprice_krw/gopax_luna_midprice_krw-1.0)*100.0)) + "%)"
+                print(alarm_content)
+                try:
+                    requestURL = "https://api.telegram.org/bot" + str(telegram_token) + "/sendMessage?chat_id=" + telegram_chat_id + "&text="
+                    requestURL = requestURL + str(alarm_content)
+                    response = requests.get(requestURL, timeout=1)
+                except:
+                    pass
 
         # ignore gdac if it diverge from coinone price or its bid-ask price is wider than bid_ask_spread_max
         if abs(1.0 - float(gdac_luna_midprice_krw)/float(coinone_luna_midprice_krw)) > stop_oracle_trigger_exchange_diverge or float(gdac_luna_price["askprice"])/float(gdac_luna_price["bidprice"]) - 1 > bid_ask_spread_max:
             gdac_share = 0
-            alarm_content = denom + " market price diversion at height " + str(height) + "! coinone_price:" + str("{0:.1f}".format(coinone_luna_midprice_krw)) + ", gdac_price:" + str("{0:.1f}".format(gdac_luna_midprice_krw))
-            alarm_content += "(percent_diff:" + str("{0:.4f}".format((coinone_luna_midprice_krw/gdac_luna_midprice_krw-1.0)*100.0)) + "%)"
-            print(alarm_content)
-            try:
-                requestURL = "https://api.telegram.org/bot" + str(telegram_token) + "/sendMessage?chat_id=" + telegram_chat_id + "&text="
-                requestURL = requestURL + str(alarm_content)
-                response = requests.get(requestURL, timeout=1)
-            except:
-                pass
+            if price_divergence_alert:
+                alarm_content = denom + " market price diversion at height " + str(height) + "! coinone_price:" + str("{0:.1f}".format(coinone_luna_midprice_krw)) + ", gdac_price:" + str("{0:.1f}".format(gdac_luna_midprice_krw))
+                alarm_content += "(percent_diff:" + str("{0:.4f}".format((coinone_luna_midprice_krw/gdac_luna_midprice_krw-1.0)*100.0)) + "%)"
+                print(alarm_content)
+                try:
+                    requestURL = "https://api.telegram.org/bot" + str(telegram_token) + "/sendMessage?chat_id=" + telegram_chat_id + "&text="
+                    requestURL = requestURL + str(alarm_content)
+                    response = requests.get(requestURL, timeout=1)
+                except:
+                    pass
         
         # vote negative price if coinone bid-ask spread is wider than "bid_ask_spread_max"
         if float(coinone_luna_price["askprice"])/float(coinone_luna_price["bidprice"]) - 1 > bid_ask_spread_max:
