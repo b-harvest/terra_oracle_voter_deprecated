@@ -45,12 +45,16 @@ round_block_num = 5.0
 # set last update time
 last_height = 0
 
+def printandflush(message):
+    print(message)
+    sys.stdout.flush()
+
 def get_current_prevotes(denom):
     try:
         result = json.loads(requests.get(str(rpc_address) + "oracle/denoms/" + str(denom) + "/prevotes").text)
         return result
     except:
-        print("get current prevotes error!")
+        printandflush("get current prevotes error!")
         return False
 
 def get_current_votes(denom):
@@ -58,7 +62,7 @@ def get_current_votes(denom):
         result = json.loads(requests.get(str(rpc_address) + "oracle/denoms/" + str(denom) + "/votes").text)
         return result
     except:
-        print("get current votes error!")
+        printandflush("get current votes error!")
         return False
 
 def get_data(source):
@@ -83,7 +87,7 @@ def get_latest_block():
         latest_block_height = int(result["block_meta"]["header"]["height"])
         latest_block_time = result["block_meta"]["header"]["time"]
     except:
-        print("get block height error!")
+        printandflush("get block height error!")
         err_flag = True
         latest_block_height = None
         latest_block_time = None
@@ -104,7 +108,7 @@ def get_fx_rate():
         real_fx["USDJPY"] = float(api_result["rates"]["USDJPY"]["rate"])
         real_fx["USDMNT"] = float(api_result["rates"]["USDMNT"]["rate"])
     except:
-        print("get currency rate error!")
+        printandflush("get currency rate error!")
         err_flag = True
         real_fx = None
     return err_flag, real_fx
@@ -120,7 +124,7 @@ def get_sdr_rate():
         scrap_cuthead = scrap_result[scrap_result.index(scrap_start) + len(scrap_start):]
         sdr_rate = float(scrap_cuthead[:12])
     except:
-        print("get sdr rate error!")
+        printandflush("get sdr rate error!")
         err_flag = True
         sdr_rate = None
     return err_flag, sdr_rate
@@ -154,7 +158,7 @@ def get_coinone_luna_price():
         luna_base = "USDKRW"
         luna_midprice_krw = float(luna_price["midprice"])
     except:
-        print("get coinone luna/krw price error!")
+        printandflush("get coinone luna/krw price error!")
         err_flag = True
         luna_price = None
         luna_base = None
@@ -175,7 +179,7 @@ def get_gopax_luna_price():
         luna_base = "USDKRW"
         luna_midprice_krw = float(luna_price["midprice"])
     except:
-        print("get gopax luna/krw price error!")
+        printandflush("get gopax luna/krw price error!")
         err_flag = True
         luna_price = None
         luna_base = None
@@ -196,7 +200,7 @@ def get_gdac_luna_price():
         luna_base = "USDKRW"
         luna_midprice_krw = float(luna_price["midprice"])
     except:
-        print("get gopax luna/krw price error!")
+        printandflush("get gopax luna/krw price error!")
         err_flag = True
         luna_price = None
         luna_base = None
@@ -233,17 +237,17 @@ def broadcast_prevote(hash):
     for denom in active:
         msg_list.append({"type":"oracle/MsgExchangeRatePrevote","value":{"hash":str(hash[denom]),"denom":str(denom),"feeder":feeder,"validator":validator}})
     tx_json = {"type":"core/StdTx","value":{"msg":msg_list,"fee":{"amount":[{"denom":fee_denom,"amount":fee_amount}],"gas":fee_gas},"signatures":[],"memo":""}}
-    print("signing prevote...")
+    printandflush("signing prevote...")
     with open("tx_oracle_prevote.json","w+") as f:
         f.write(json.dumps(tx_json))
     time.sleep(0.5)
     cmd = "echo " + key_password + " | " + terracli + " tx sign tx_oracle_prevote.json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
     tx_json_signed = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
-    # print(tx_json_signed)
+    # printandflush(tx_json_signed)
     with open("tx_oracle_prevote_signed.json","w+") as f:
         f.write(json.dumps(tx_json_signed))
     time.sleep(0.5)
-    print("broadcasting prevote...")
+    printandflush("broadcasting prevote...")
     cmd = "echo " + key_password + " | " + terracli + " tx broadcast tx_oracle_prevote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
     result = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
     return result
@@ -259,17 +263,17 @@ def broadcast_all(vote_price, vote_salt, prevote_hash):
     for denom in active:
         msg_list.append({"type":"oracle/MsgExchangeRatePrevote","value":{"hash":str(prevote_hash[denom]),"denom":str(denom),"feeder":feeder,"validator":validator}})
     tx_json = {"type":"core/StdTx","value":{"msg":msg_list,"fee":{"amount":[{"denom":fee_denom,"amount":fee_amount}],"gas":fee_gas},"signatures":[],"memo":""}}
-    print("signing vote/prevote...")
+    printandflush("signing vote/prevote...")
     with open("tx_oracle_vote_prevote.json","w+") as f:
         f.write(json.dumps(tx_json))
     time.sleep(0.5)
     cmd = "echo " + key_password + " | " + terracli + " tx sign tx_oracle_vote_prevote.json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
     tx_json_signed = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
-    # print(tx_json_signed)
+    # printandflush(tx_json_signed)
     with open("tx_oracle_vote_prevote_signed.json","w+") as f:
         f.write(json.dumps(tx_json_signed))
     time.sleep(0.5)
-    print("broadcasting vote/prevote...")
+    printandflush("broadcasting vote/prevote...")
     cmd = "echo " + key_password + " | " + terracli + " tx broadcast tx_oracle_vote_prevote_signed.json --output json --from " + key_name + " --chain-id " + chain_id + " --home " + home_cli + " --node " + node
     result = json.loads(subprocess.check_output(cmd,shell=True).decode("utf-8"))
     return result
@@ -314,7 +318,7 @@ while True:
                 active.append(denom["denom"])
         else:
             active = hardfix_active_set
-        print("active set : " + str(active))
+        printandflush("active set : " + str(active))
 
         # get external data
         all_err_flag = False
@@ -339,7 +343,7 @@ while True:
             if price_divergence_alert:
                 alarm_content = denom + " market price diversion at height " + str(height) + "! coinone_price:" + str("{0:.1f}".format(coinone_luna_midprice_krw)) + ", gopax_price:" + str("{0:.1f}".format(gopax_luna_midprice_krw))
                 alarm_content += "(percent_diff:" + str("{0:.4f}".format((coinone_luna_midprice_krw/gopax_luna_midprice_krw-1.0)*100.0)) + "%)"
-                print(alarm_content)
+                printandflush(alarm_content)
                 try:
                     requestURL = "https://api.telegram.org/bot" + str(telegram_token) + "/sendMessage?chat_id=" + telegram_chat_id + "&text="
                     requestURL = requestURL + str(alarm_content)
@@ -353,7 +357,7 @@ while True:
             if price_divergence_alert:
                 alarm_content = denom + " market price diversion at height " + str(height) + "! coinone_price:" + str("{0:.1f}".format(coinone_luna_midprice_krw)) + ", gdac_price:" + str("{0:.1f}".format(gdac_luna_midprice_krw))
                 alarm_content += "(percent_diff:" + str("{0:.4f}".format((coinone_luna_midprice_krw/gdac_luna_midprice_krw-1.0)*100.0)) + "%)"
-                print(alarm_content)
+                printandflush(alarm_content)
                 try:
                     requestURL = "https://api.telegram.org/bot" + str(telegram_token) + "/sendMessage?chat_id=" + telegram_chat_id + "&text="
                     requestURL = requestURL + str(alarm_content)
@@ -387,7 +391,7 @@ while True:
                     swap_price_compare.append({"market":currency,"swap_price":this_swap_price,"market_price":market_price})
                 result = {"index":int(ts/60), "timestamp":ts, "block_height":latest_block_height, "block_time":latest_block_time,"swap_price_compare":swap_price_compare, "real_fx":real_fx, "luna_price_list":[coinone_luna_price,gopax_luna_price]}
             except:
-                print("reorganize data error!")
+                printandflush("reorganize data error!")
                 all_err_flag = True
 
         # prevote for current round
@@ -404,11 +408,11 @@ while True:
                 for prices in result["swap_price_compare"]:
                     if prices["market"] == denom:
                         if abs(prices["market_price"]/prices["swap_price"]-1.0) <= stop_oracle_trigger_recent_diverge or len(hardfix_active_set) > 0:
-                            print("prevoting " + denom + " : " + str(prices["market_price"]) + "(percent_change:" + str("{0:.4f}".format((prices["market_price"]/prices["swap_price"]-1.0)*100.0)) + "%)")
+                            printandflush("prevoting " + denom + " : " + str(prices["market_price"]) + "(percent_change:" + str("{0:.4f}".format((prices["market_price"]/prices["swap_price"]-1.0)*100.0)) + "%)")
                         else:
                             alarm_content = denom + " price diversion at height " + str(height) + "! market_price:" + str("{0:.4f}".format(prices["market_price"])) + ", swap_price:" + str("{0:.4f}".format(prices["swap_price"]))
                             alarm_content += "(percent_change:" + str("{0:.4f}".format((prices["market_price"]/prices["swap_price"]-1.0)*100.0)) + "%)"
-                            print(alarm_content)
+                            printandflush(alarm_content)
                             try:
                                 requestURL = "https://api.telegram.org/bot" + str(telegram_token) + "/sendMessage?chat_id=" + telegram_chat_id + "&text="
                                 requestURL = requestURL + str(alarm_content)
@@ -426,13 +430,13 @@ while True:
                         hash_temp[denom] = get_hash(salt_temp[denom], price_temp[denom], denom, validator)
                         break
 
-            print("start voting on height " + str(height+1))
+            printandflush("start voting on height " + str(height+1))
             if last_prevoted_round != current_round:
-                print("we don't have any prevote to vote. only prevote...")
+                printandflush("we don't have any prevote to vote. only prevote...")
                 broadcast_prevote(hash_temp)
             else:
                 # broadcast vote/prevote at the same time!
-                print("broadcast vote/prevote at the same time...")
+                printandflush("broadcast vote/prevote at the same time...")
                 broadcast_all(this_price, this_salt, hash_temp)
 
             time.sleep(pause_broadcast)
@@ -451,6 +455,6 @@ while True:
             for item in swap_price:
                 last_swap_price.append(item)
     else:
-        print(str(height) + " : wait " + str((current_round+1)*round_block_num-height) + " blocks until this round ends...")
+        printandflush(str(height) + " : wait " + str((current_round+1)*round_block_num-height) + " blocks until this round ends...")
 
     time.sleep(1)
