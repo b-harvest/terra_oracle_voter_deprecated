@@ -33,7 +33,7 @@ coinone_share_default = 0.60 # default coinone weight
 gopax_share_default = 0.20 # default gopax weight
 gdac_share_default = 0.20 # default gdac weight
 price_divergence_alert = False
-vwma_period = 3*60*1000 # in milliesecond
+vwma_period = 3*60 # in seconds
 
 # parameters
 fx_map = {"uusd":"USDUSD","ukrw":"USDKRW","usdr":"USDSDR","umnt":"USDMNT"}
