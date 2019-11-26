@@ -33,7 +33,7 @@ coinone_share_default = 0.60 # default coinone weight
 gopax_share_default = 0.20 # default gopax weight
 gdac_share_default = 0.20 # default gdac weight
 price_divergence_alert = False
-vwma_period = 3 # in minutes
+vwma_period = 3*60*1000 # in milliesecond
 
 # parameters
 fx_map = {"uusd":"USDUSD","ukrw":"USDKRW","usdr":"USDSDR","umnt":"USDMNT"}
@@ -130,20 +130,20 @@ def get_coinone_luna_price():
     err_flag = False
     try:
         if vwma_period>1:
-            url = "https://tb.coinone.co.kr/api/v1/chart/olhc/?site=coinoneluna&type=1m"
-            luna_result = json.loads(requests.get(url).text)["data"]
-            sum_low_volume = 0
-            sum_high_volume = 0
+            url = "https://api.coinone.co.kr/trades/?currency=luna"
+            luna_result = json.loads(requests.get(url).text)["completeOrders"]
+            hist_price = []
+            sum_price_volume = 0
             sum_volume = 0
+            now_time = float(time.time())
             for row in luna_result:
-                if len(hist_price) < vwma_period:
-                    sum_low_volume += float(row["Low"])*float(row["Volume"])
-                    sum_high_volume += float(row["High"])*float(row["Volume"])
-                    sum_volume += float(row["Volume"])
+                if now_time - float(row['timestamp']) < vwma_period:
+                    sum_price_volume += float(row["price"])*float(row["qty"])
+                    sum_volume += float(row["qty"])
                 else:
                     break
-            askprice = sum_low_volume / sum_volume
-            bidprice = sum_high_volume / sum_volume
+            askprice = sum_price_volume / sum_volume
+            bidprice = sum_price_volume / sum_volume
         else:
             url = "https://api.coinone.co.kr/orderbook/?currency=luna&format=json"
             luna_result = json.loads(requests.get(url).text)
