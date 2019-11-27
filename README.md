@@ -10,6 +10,17 @@ Python3
 ## Preliminary
 The server running this script should run terrad with synced status.
 
+## New features
+1) error handling
+- when coinone price, last swap price, or fx rate is unavailable, vote -1 for all oracle
+- when coinone bid-ask spread is wider than `bid_ask_spread_max`, vote -1 for all oracle
+- when other exchange price than coinone is unavailable, exclude those prices from averaging
+- when calculated oracle price and last oracle price differ more than `stop_oracle_trigger_recent_diverge`, vote -1 for the denom
+2) period-customized vwma(volume weighted moving average) for coinone market price
+3) customized weights for each exchange's market price
+4) use LCD endpoint to get recent oracle prices
+
+
 ## Configure(in terra_oracle_vote.py)
 ### user setup
 telegram_token = ""\
