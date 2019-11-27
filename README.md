@@ -33,11 +33,11 @@ coinone_share_default = 1 # default coinone weight for averaging oracle price\
 gopax_share_default = 0 # default gopax weight for averaging oracle price\
 gdac_share_default = 0 # default gdac weight for averaging oracle price\
 price_divergence_alert = False # alert when exchange prices diverge\
-vwma_period = 3*60 # period for volume weight moving average of coinone price in seconds\
+vwma_period = 3*60 # period for volume weight moving average of coinone price in seconds
 
 ### parameters
 fx_map = {"uusd":"USDUSD","ukrw":"USDKRW","usdr":"USDSDR","umnt":"USDMNT"}\
 active_candidate = ["uusd","ukrw","usdr","umnt"] # candidate for active denom set\
 hardfix_active_set = ["uusd","ukrw","usdr","umnt"] # hardfix the active set. does not care last oracle price availability\
 chain_id = "soju-0012" # chain id\
-round_block_num = 5.0 # number of blocks for each oracle round\
+round_block_num = 5.0 # number of blocks for each oracle round
