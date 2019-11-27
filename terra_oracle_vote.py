@@ -279,13 +279,13 @@ def broadcast_all(vote_price, vote_salt, prevote_hash):
     return result
 
 
-err_flag = True
-while err_flag:
+main_err_flag = True
+while main_err_flag:
     latest_block_err_flag, latest_block_height, latest_block_time = get_latest_block()
     if latest_block_err_flag == False:
         height = latest_block_height
         if height>last_height:
-            err_flag = False
+            main_err_flag = False
             last_height=height
     time.sleep(0.5)
 
@@ -293,13 +293,13 @@ last_prevoted_round = 0
 
 while True:
 
-    err_flag = True
-    while err_flag:
+    main_err_flag = True
+    while main_err_flag:
         latest_block_err_flag, latest_block_height, latest_block_time = get_latest_block()
         if latest_block_err_flag == False:
             height = latest_block_height
             if height>last_height:
-                err_flag = False
+                main_err_flag = False
                 last_height=height
         time.sleep(0.5)
 
@@ -337,47 +337,57 @@ while True:
         gopax_share = gopax_share_default
         gdac_share = gdac_share_default
 
-        # ignore gopax if it diverge from coinone price or its bid-ask price is wider than bid_ask_spread_max
-        if abs(1.0 - float(gopax_luna_midprice_krw)/float(coinone_luna_midprice_krw)) > stop_oracle_trigger_exchange_diverge or float(gopax_luna_price["askprice"])/float(gopax_luna_price["bidprice"]) - 1 > bid_ask_spread_max:
+        if fx_err_flag or sdr_err_flag or coinone_err_flag or swap_price_err_flag:
+            all_err_flag = True
+        
+        if gopax_err_flag:
             gopax_share = 0
-            if price_divergence_alert:
-                alarm_content = denom + " market price diversion at height " + str(height) + "! coinone_price:" + str("{0:.1f}".format(coinone_luna_midprice_krw)) + ", gopax_price:" + str("{0:.1f}".format(gopax_luna_midprice_krw))
-                alarm_content += "(percent_diff:" + str("{0:.4f}".format((coinone_luna_midprice_krw/gopax_luna_midprice_krw-1.0)*100.0)) + "%)"
-                printandflush(alarm_content)
-                try:
-                    requestURL = "https://api.telegram.org/bot" + str(telegram_token) + "/sendMessage?chat_id=" + telegram_chat_id + "&text="
-                    requestURL = requestURL + str(alarm_content)
-                    response = requests.get(requestURL, timeout=1)
-                except:
-                    pass
-
-        # ignore gdac if it diverge from coinone price or its bid-ask price is wider than bid_ask_spread_max
-        if abs(1.0 - float(gdac_luna_midprice_krw)/float(coinone_luna_midprice_krw)) > stop_oracle_trigger_exchange_diverge or float(gdac_luna_price["askprice"])/float(gdac_luna_price["bidprice"]) - 1 > bid_ask_spread_max:
+        if gdac_err_flag:
             gdac_share = 0
-            if price_divergence_alert:
-                alarm_content = denom + " market price diversion at height " + str(height) + "! coinone_price:" + str("{0:.1f}".format(coinone_luna_midprice_krw)) + ", gdac_price:" + str("{0:.1f}".format(gdac_luna_midprice_krw))
-                alarm_content += "(percent_diff:" + str("{0:.4f}".format((coinone_luna_midprice_krw/gdac_luna_midprice_krw-1.0)*100.0)) + "%)"
-                printandflush(alarm_content)
-                try:
-                    requestURL = "https://api.telegram.org/bot" + str(telegram_token) + "/sendMessage?chat_id=" + telegram_chat_id + "&text="
-                    requestURL = requestURL + str(alarm_content)
-                    response = requests.get(requestURL, timeout=1)
-                except:
-                    pass
         
-        # vote negative price if coinone bid-ask spread is wider than "bid_ask_spread_max"
-        if float(coinone_luna_price["askprice"])/float(coinone_luna_price["bidprice"]) - 1 > bid_ask_spread_max:
-            all_err_flag = True
+        if all_err_flag == False:
 
-        # weighted average
-        luna_midprice_krw = (float(coinone_luna_midprice_krw)*coinone_share + float(gopax_luna_midprice_krw)*gopax_share + float(gdac_luna_midprice_krw)*gdac_share)/(coinone_share+gopax_share+gdac_share)
-        luna_base = coinone_luna_base
+            # ignore gopax if it diverge from coinone price or its bid-ask price is wider than bid_ask_spread_max
+            if gopax_share > 0:
+                if abs(1.0 - float(gopax_luna_midprice_krw)/float(coinone_luna_midprice_krw)) > stop_oracle_trigger_exchange_diverge or float(gopax_luna_price["askprice"])/float(gopax_luna_price["bidprice"]) - 1 > bid_ask_spread_max:
+                    gopax_share = 0
+                    if price_divergence_alert:
+                        alarm_content = denom + " market price diversion at height " + str(height) + "! coinone_price:" + str("{0:.1f}".format(coinone_luna_midprice_krw)) + ", gopax_price:" + str("{0:.1f}".format(gopax_luna_midprice_krw))
+                        alarm_content += "(percent_diff:" + str("{0:.4f}".format((coinone_luna_midprice_krw/gopax_luna_midprice_krw-1.0)*100.0)) + "%)"
+                        printandflush(alarm_content)
+                        try:
+                            requestURL = "https://api.telegram.org/bot" + str(telegram_token) + "/sendMessage?chat_id=" + telegram_chat_id + "&text="
+                            requestURL = requestURL + str(alarm_content)
+                            response = requests.get(requestURL, timeout=1)
+                        except:
+                            pass
+
+            # ignore gdac if it diverge from coinone price or its bid-ask price is wider than bid_ask_spread_max
+            if gdac_share > 0:
+                if abs(1.0 - float(gdac_luna_midprice_krw)/float(coinone_luna_midprice_krw)) > stop_oracle_trigger_exchange_diverge or float(gdac_luna_price["askprice"])/float(gdac_luna_price["bidprice"]) - 1 > bid_ask_spread_max:
+                    gdac_share = 0
+                    if price_divergence_alert:
+                        alarm_content = denom + " market price diversion at height " + str(height) + "! coinone_price:" + str("{0:.1f}".format(coinone_luna_midprice_krw)) + ", gdac_price:" + str("{0:.1f}".format(gdac_luna_midprice_krw))
+                        alarm_content += "(percent_diff:" + str("{0:.4f}".format((coinone_luna_midprice_krw/gdac_luna_midprice_krw-1.0)*100.0)) + "%)"
+                        printandflush(alarm_content)
+                        try:
+                            requestURL = "https://api.telegram.org/bot" + str(telegram_token) + "/sendMessage?chat_id=" + telegram_chat_id + "&text="
+                            requestURL = requestURL + str(alarm_content)
+                            response = requests.get(requestURL, timeout=1)
+                        except:
+                            pass
+            
+            # vote negative price if coinone bid-ask spread is wider than "bid_ask_spread_max"
+            if float(coinone_luna_price["askprice"])/float(coinone_luna_price["bidprice"]) - 1 > bid_ask_spread_max:
+                all_err_flag = True
+
+        if all_err_flag == False:
+
+            # weighted average
+            luna_midprice_krw = (float(coinone_luna_midprice_krw)*coinone_share + float(gopax_luna_midprice_krw)*gopax_share + float(gdac_luna_midprice_krw)*gdac_share)/(coinone_share+gopax_share+gdac_share)
+            luna_base = coinone_luna_base
         
-        if fx_err_flag or sdr_err_flag or coinone_err_flag or gopax_err_flag or swap_price_err_flag:
-            all_err_flag = True
-
-        # reorganize data
-        if all_err_flag==False:
+            # reorganize data
             try:
                 # get swap price / market price
                 swap_price_compare = []
@@ -393,21 +403,23 @@ while True:
             except:
                 printandflush("reorganize data error!")
                 all_err_flag = True
+        
+        if all_err_flag == False:
 
-        # prevote for current round
-        if all_err_flag==False:
-            price_temp = {}
-            hash_temp = {}
-            salt_temp = {}
+            # prevote for current round
+            this_price = {}
+            this_hash = {}
+            this_salt = {}
             for denom in active:
-                price_temp.update({denom:0.0})
-                hash_temp.update({denom:""})
-                salt_temp.update({denom:""})
+                this_price.update({denom:0.0})
+                this_hash.update({denom:""})
+                this_salt.update({denom:""})
 
             for denom in active:
                 for prices in result["swap_price_compare"]:
                     if prices["market"] == denom:
-                        if abs(prices["market_price"]/prices["swap_price"]-1.0) <= stop_oracle_trigger_recent_diverge or len(hardfix_active_set) > 0:
+                        this_denom_err_flag = False
+                        if abs(prices["market_price"]/prices["swap_price"]-1.0) <= stop_oracle_trigger_recent_diverge:
                             printandflush("prevoting " + denom + " : " + str(prices["market_price"]) + "(percent_change:" + str("{0:.4f}".format((prices["market_price"]/prices["swap_price"]-1.0)*100.0)) + "%)")
                         else:
                             alarm_content = denom + " price diversion at height " + str(height) + "! market_price:" + str("{0:.4f}".format(prices["market_price"])) + ", swap_price:" + str("{0:.4f}".format(prices["swap_price"]))
@@ -419,41 +431,46 @@ while True:
                                 response = requests.get(requestURL, timeout=1)
                             except:
                                 pass
-                            all_err_flag = True
+                            this_denom_err_flag = True
 
-                        salt_temp[denom] = get_salt(str(time.time()))
-                        # vote negative when all_err_flag == False(any error happened)
-                        if all_err_flag == False:
-                            price_temp[denom] = str("{0:.18f}".format(float(prices["market_price"])))
+                        this_salt[denom] = get_salt(str(time.time()))
+                        if this_denom_err_flag == False: # vote negative when this_denom_err_flag == True
+                            this_price[denom] = str("{0:.18f}".format(float(prices["market_price"])))
                         else:
-                            price_temp[denom] = str("{0:.18f}".format(float(-1)))
-                        hash_temp[denom] = get_hash(salt_temp[denom], price_temp[denom], denom, validator)
+                            this_price[denom] = str("{0:.18f}".format(float(-1)))
+                        this_hash[denom] = get_hash(this_salt[denom], this_price[denom], denom, validator)
                         break
-
-            printandflush("start voting on height " + str(height+1))
-            if last_prevoted_round != current_round:
-                printandflush("we don't have any prevote to vote. only prevote...")
-                broadcast_prevote(hash_temp)
-            else:
-                # broadcast vote/prevote at the same time!
-                printandflush("broadcast vote/prevote at the same time...")
-                broadcast_all(this_price, this_salt, hash_temp)
-
-            time.sleep(pause_broadcast)
-
-            # update last_prevoted_round
-            last_prevoted_round = next_height_round
-            this_price = {}
-            this_salt = {}
+        
+        if all_err_flag == True: # vote negative when all_err_flag == True
             for denom in active:
-                this_price.update({denom:0.0})
-                this_salt.update({denom:""})
-            for denom in active:
-                this_price[denom] = price_temp[denom]
-                this_salt[denom] = salt_temp[denom]
-            last_swap_price = []
-            for item in swap_price:
-                last_swap_price.append(item)
+                this_price[denom] = str("{0:.18f}".format(float(-1)))
+                this_hash[denom] = get_hash(this_salt[denom], this_price[denom], denom, validator)
+        
+        printandflush("start voting on height " + str(height+1))
+        if last_prevoted_round != current_round:
+            printandflush("we don't have any prevote to vote. only prevote...")
+            broadcast_prevote(this_hash)
+        else:
+            # broadcast vote/prevote at the same time!
+            printandflush("broadcast vote/prevote at the same time...")
+            broadcast_all(last_price, last_salt, this_hash)
+
+        time.sleep(pause_broadcast)
+
+        # update last_prevoted_round
+        last_prevoted_round = next_height_round
+        last_price = {}
+        last_salt = {}
+        for denom in active:
+            last_price.update({denom:0.0})
+            last_salt.update({denom:""})
+        for denom in active:
+            last_price[denom] = this_price[denom]
+            last_salt[denom] = this_salt[denom]
+        last_swap_price = []
+        for item in swap_price:
+            last_swap_price.append(item)
+
     else:
         printandflush(str(height) + " : wait " + str((current_round+1)*round_block_num-height) + " blocks until this round ends...")
 
