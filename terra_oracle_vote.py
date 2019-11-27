@@ -34,6 +34,8 @@ gopax_share_default = 0.20 # default gopax weight
 gdac_share_default = 0.20 # default gdac weight
 price_divergence_alert = False
 vwma_period = 3*60 # in seconds
+misses = 0
+alertmisses = True
 
 # parameters
 fx_map = {"uusd":"USDUSD","ukrw":"USDKRW","usdr":"USDSDR","umnt":"USDMNT"}
@@ -48,6 +50,15 @@ last_height = 0
 def printandflush(message):
     print(message)
     sys.stdout.flush()
+
+def get_current_misses():
+    try:
+        result = json.loads(requests.get(str(rpc_address) + "oracle/voters/" + str(validator) + "/miss").text)
+        misses = int(result["result"])
+        return misses
+    except:
+        printandflush("get current misses error!")
+        return 0
 
 def get_current_prevotes(denom):
     try:
@@ -470,6 +481,26 @@ while True:
         last_swap_price = []
         for item in swap_price:
             last_swap_price.append(item)
+
+        # Get last amount of misses, if this increased message telegram
+        currentmisses = get_current_misses()
+        # at start of the script
+        if misses == 0:
+            misses = currentmisses
+        # when the measuring starts over, currentmisses is lower than the stored misses
+        if currentmisses < misses:
+            misses = currentmisses
+        if currentmisses > misses:
+            # we have new misses, alert telegram
+            alarm_content = "Terra Oracle misses went from " + str(misses) + " to " + str(currentmisses)
+            if alertmisses == True:
+                try:
+                    requestURL = "https://api.telegram.org/bot" + str(telegram_token) + "/sendMessage?chat_id=" + telegram_chat_id + "&text="
+                    requestURL = requestURL + str(alarm_content)
+                    response = requests.get(requestURL, timeout=1)
+                except:
+                    pass
+            misses = currentmisses
 
     else:
         printandflush(str(height) + " : wait " + str((current_round+1)*round_block_num-height) + " blocks until this round ends...")
