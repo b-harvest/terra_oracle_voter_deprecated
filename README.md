@@ -20,6 +20,8 @@ The server running this script should run terrad with synced status.
 3) customized weights for each exchange's market price
 4) use LCD endpoint to get recent oracle prices
 
+* Thank you Peter(ChainLayer.io) for reviewing and testing the script!
+
 
 ## Configure(in terra_oracle_vote.py)
 ### user setup
