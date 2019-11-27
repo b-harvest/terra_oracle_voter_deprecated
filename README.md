@@ -54,3 +54,8 @@ active_candidate = ["uusd","ukrw","usdr","umnt"] # candidate for active denom se
 hardfix_active_set = ["uusd","ukrw","usdr","umnt"] # hardfix the active set. does not care last oracle price availability\
 chain_id = "soju-0012" # chain id\
 round_block_num = 5.0 # number of blocks for each oracle round
+
+### Systemctl
+Copy the oracle.service file to /etc/systemd/system and change the location of the working directory and oracle file accordingly
+enable the service with systemctl enable oracle
+start the service with systemctl start oracle
