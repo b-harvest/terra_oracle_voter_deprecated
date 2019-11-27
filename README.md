@@ -1,5 +1,5 @@
 # Terra_oracle_voter
-Oracle autovoting script for Terra(v0.3.0+) oracle by B-Harvest
+Oracle autovoting script for Terra(columbus-2) oracle by B-Harvest
 
 ## Disclaimer
 The script is in highly experimental state, and users should aware that all result from the terra_oracle_voter script is responsible to the user himself/herself.
@@ -26,18 +26,11 @@ fee_denom = "ukrw" # fee denom\
 fee_gas = "150000" # fee gas\
 fee_amount = "1500" # fee amount in ukrw\
 home_cli = "/home/ubuntu/.terracli" # terracli home directory\
-node = "tcp://52.78.69.160:26657" # node to broadcast the txs\
-terracli = "sudo /home/ubuntu/go/bin/terracli" # path to terracli binary\
-rpc_address = "https://soju-lcd.terra.dev/" # rpc to receive swap price information\
-coinone_share_default = 1 # default coinone weight for averaging oracle price\
-gopax_share_default = 0 # default gopax weight for averaging oracle price\
-gdac_share_default = 0 # default gdac weight for averaging oracle price\
-price_divergence_alert = False # alert when exchange prices diverge\
-vwma_period = 3*60 # period for volume weight moving average of coinone price in seconds
+price_divergence_alert = False
 
 ### parameters
 fx_map = {"uusd":"USDUSD","ukrw":"USDKRW","usdr":"USDSDR","umnt":"USDMNT"}\
 active_candidate = ["uusd","ukrw","usdr","umnt"] # candidate for active denom set\
 hardfix_active_set = ["uusd","ukrw","usdr","umnt"] # hardfix the active set. does not care last oracle price availability\
 chain_id = "soju-0012" # chain id\
-round_block_num = 5.0 # number of blocks for each oracle round
+round_block_num = 10.0 # number of blocks for each oracle round
