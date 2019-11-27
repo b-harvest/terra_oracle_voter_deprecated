@@ -484,7 +484,11 @@ while True:
 
         # Get last amount of misses, if this increased message telegram
         currentmisses = get_current_misses()
+        # at start of the script
         if misses == 0:
+            misses = currentmisses
+        # when the measuring starts over, currentmisses is lower than the stored misses
+        if currentmisses < misses:
             misses = currentmisses
         if currentmisses > misses:
             # we have new misses, alert telegram
