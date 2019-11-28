@@ -55,10 +55,11 @@ def get_current_misses():
     try:
         result = json.loads(requests.get(str(rpc_address) + "oracle/voters/" + str(validator) + "/miss").text)
         misses = int(result["result"])
-        return misses
+        height = int(result["height"])
+        return misses, height
     except:
         printandflush("get current misses error!")
-        return 0
+        return 0, 0
 
 def get_current_prevotes(denom):
     try:
@@ -483,16 +484,16 @@ while True:
             last_swap_price.append(item)
 
         # Get last amount of misses, if this increased message telegram
-        currentmisses = get_current_misses()
-        # at start of the script
+        currentmisses, currentheight = get_current_misses()
+        if currentheight > 0:
+            misspercentage = round(float(currentmisses) / float(currentheight) * 100, 2)
+            printandflush("Current miss percentage: " + str(misspercentage) + "%")
         if misses == 0:
-            misses = currentmisses
-        # when the measuring starts over, currentmisses is lower than the stored misses
-        if currentmisses < misses:
             misses = currentmisses
         if currentmisses > misses:
             # we have new misses, alert telegram
-            alarm_content = "Terra Oracle misses went from " + str(misses) + " to " + str(currentmisses)
+            alarm_content = "Terra Oracle misses went from " + str(misses) + " to " + str(currentmisses) + "(" + str(misspercentage) + "%)"
+            printandflush(alarm_content)
             if alertmisses == True:
                 try:
                     requestURL = "https://api.telegram.org/bot" + str(telegram_token) + "/sendMessage?chat_id=" + telegram_chat_id + "&text="
