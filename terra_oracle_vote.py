@@ -12,6 +12,7 @@ import requests
 import hashlib
 
 # user setup
+slackurl = ""
 telegram_token = ""
 telegram_chat_id = ""
 stop_oracle_trigger_recent_diverge = 0.1 # stop oracle when price change exceeds stop_oracle_trigger
@@ -50,6 +51,20 @@ last_height = 0
 def printandflush(message):
     print(message)
     sys.stdout.flush()
+
+def telegram(message):
+    try:
+        requestURL = "https://api.telegram.org/bot" + str(telegram_token) + "/sendMessage?chat_id=" + telegram_chat_id + "&text="
+        requestURL = requestURL + str(message)
+        response = requests.get(requestURL, timeout=1)
+    except:
+        pass
+
+def slack(message):
+    try:
+        response = requests.post(slackurl, json={"text": message})
+    except:
+        pass
 
 def get_current_misses():
     try:
@@ -341,7 +356,6 @@ while True:
         p.join()
         fx_err_flag, real_fx = res_fx
         sdr_err_flag, sdr_rate = res_sdr
-        real_fx["USDSDR"] = sdr_rate
         coinone_err_flag, coinone_luna_price, coinone_luna_base, coinone_luna_midprice_krw = res_coinone
         gopax_err_flag, gopax_luna_price, gopax_luna_base, gopax_luna_midprice_krw = res_gopax
         gdac_err_flag, gdac_luna_price, gdac_luna_base, gdac_luna_midprice_krw = res_gdac
@@ -358,6 +372,7 @@ while True:
             gdac_share = 0
         
         if all_err_flag == False:
+            real_fx["USDSDR"] = sdr_rate
 
             # ignore gopax if it diverge from coinone price or its bid-ask price is wider than bid_ask_spread_max
             if gopax_share > 0:
@@ -367,12 +382,8 @@ while True:
                         alarm_content = denom + " market price diversion at height " + str(height) + "! coinone_price:" + str("{0:.1f}".format(coinone_luna_midprice_krw)) + ", gopax_price:" + str("{0:.1f}".format(gopax_luna_midprice_krw))
                         alarm_content += "(percent_diff:" + str("{0:.4f}".format((coinone_luna_midprice_krw/gopax_luna_midprice_krw-1.0)*100.0)) + "%)"
                         printandflush(alarm_content)
-                        try:
-                            requestURL = "https://api.telegram.org/bot" + str(telegram_token) + "/sendMessage?chat_id=" + telegram_chat_id + "&text="
-                            requestURL = requestURL + str(alarm_content)
-                            response = requests.get(requestURL, timeout=1)
-                        except:
-                            pass
+                        telegram(alarm_content)
+                        slack(alarm_content)
 
             # ignore gdac if it diverge from coinone price or its bid-ask price is wider than bid_ask_spread_max
             if gdac_share > 0:
@@ -382,12 +393,8 @@ while True:
                         alarm_content = denom + " market price diversion at height " + str(height) + "! coinone_price:" + str("{0:.1f}".format(coinone_luna_midprice_krw)) + ", gdac_price:" + str("{0:.1f}".format(gdac_luna_midprice_krw))
                         alarm_content += "(percent_diff:" + str("{0:.4f}".format((coinone_luna_midprice_krw/gdac_luna_midprice_krw-1.0)*100.0)) + "%)"
                         printandflush(alarm_content)
-                        try:
-                            requestURL = "https://api.telegram.org/bot" + str(telegram_token) + "/sendMessage?chat_id=" + telegram_chat_id + "&text="
-                            requestURL = requestURL + str(alarm_content)
-                            response = requests.get(requestURL, timeout=1)
-                        except:
-                            pass
+                        telegram(alarm_content)
+                        slack(alarm_content)
             
             # vote negative price if coinone bid-ask spread is wider than "bid_ask_spread_max"
             if float(coinone_luna_price["askprice"])/float(coinone_luna_price["bidprice"]) - 1 > bid_ask_spread_max:
@@ -416,17 +423,17 @@ while True:
                 printandflush("reorganize data error!")
                 all_err_flag = True
         
+        this_price = {}
+        this_hash = {}
+        this_salt = {}
+        for denom in active:
+            this_price.update({denom:0.0})
+            this_hash.update({denom:""})
+            this_salt.update({denom:""})
+
         if all_err_flag == False:
 
             # prevote for current round
-            this_price = {}
-            this_hash = {}
-            this_salt = {}
-            for denom in active:
-                this_price.update({denom:0.0})
-                this_hash.update({denom:""})
-                this_salt.update({denom:""})
-
             for denom in active:
                 for prices in result["swap_price_compare"]:
                     if prices["market"] == denom:
@@ -437,12 +444,8 @@ while True:
                             alarm_content = denom + " price diversion at height " + str(height) + "! market_price:" + str("{0:.4f}".format(prices["market_price"])) + ", swap_price:" + str("{0:.4f}".format(prices["swap_price"]))
                             alarm_content += "(percent_change:" + str("{0:.4f}".format((prices["market_price"]/prices["swap_price"]-1.0)*100.0)) + "%)"
                             printandflush(alarm_content)
-                            try:
-                                requestURL = "https://api.telegram.org/bot" + str(telegram_token) + "/sendMessage?chat_id=" + telegram_chat_id + "&text="
-                                requestURL = requestURL + str(alarm_content)
-                                response = requests.get(requestURL, timeout=1)
-                            except:
-                                pass
+                            telegram(alarm_content)
+                            slack(alarm_content)
                             this_denom_err_flag = True
 
                         this_salt[denom] = get_salt(str(time.time()))
@@ -495,12 +498,8 @@ while True:
             alarm_content = "Terra Oracle misses went from " + str(misses) + " to " + str(currentmisses) + "(" + str(misspercentage) + "%)"
             printandflush(alarm_content)
             if alertmisses == True:
-                try:
-                    requestURL = "https://api.telegram.org/bot" + str(telegram_token) + "/sendMessage?chat_id=" + telegram_chat_id + "&text="
-                    requestURL = requestURL + str(alarm_content)
-                    response = requests.get(requestURL, timeout=1)
-                except:
-                    pass
+                telegram(alarm_content)
+                slack(alarm_content)
             misses = currentmisses
 
     else:
