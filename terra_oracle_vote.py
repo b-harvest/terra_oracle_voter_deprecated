@@ -475,6 +475,7 @@ while True:
         if all_err_flag == True: # vote negative when all_err_flag == True
             for denom in active:
                 this_price[denom] = str("{0:.18f}".format(float(-1)))
+                this_salt[denom] = get_salt(str(time.time()))
                 this_hash[denom] = get_hash(this_salt[denom], this_price[denom], denom, validator)
         
         printandflush("start voting on height " + str(height+1))
