@@ -15,6 +15,8 @@ import hashlib
 slackurl = ""
 telegram_token = ""
 telegram_chat_id = ""
+fcsapi_key = "" # https://fcsapi.com
+alphavantage_key = "" # https://www.alphavantage.co/
 stop_oracle_trigger_recent_diverge = 0.1 # stop oracle when price change exceeds stop_oracle_trigger
 stop_oracle_trigger_exchange_diverge = 0.1 # stop oracle when price change exceeds stop_oracle_trigger
 bid_ask_spread_max = 0.05 # vote negative price when bid-ask price is wider than bid_ask_spread_max
@@ -92,6 +94,19 @@ def get_current_votes(denom):
         printandflush("get current votes error!")
         return False
 
+def get_my_current_prevotes():
+    try:
+        result = json.loads(requests.get(str(rpc_address) + "oracle/voters/" + str(validator) + "/prevotes").text)
+        result_vote = []
+        for vote in result["result"]:
+            if str(vote["voter"]) == str(validator):
+                result_vote.append(vote)
+        return result_vote
+    except:
+        printandflush("get my current prevotes error!")
+        return False
+    
+
 def get_data(source):
     if source=="get_fx_rate":
         return get_fx_rate()
@@ -125,20 +140,19 @@ def get_fx_rate():
     err_flag = False
     try:
         # get currency rate
-        url = "https://www.freeforexapi.com/api/live?pairs=USDUSD,USDKRW,USDEUR,USDCNY,USDJPY,USDMNT"
+        url = "https://fcsapi.com/api/forex/latest?symbol=USD/KRW,USD/EUR,USD/CNY,USD/JPY&access_key=" + str(fcsapi_key)
         api_result = json.loads(requests.get(url).text)
-        real_fx = {"USDUSD":1.0,"USDKRW":1.0,"USDEUR":1.0,"USDCNY":1.0,"USDJPY":1.0,"USDSDR":1.0, "USDMNT":1.0}
-        real_fx["USDUSD"] = float(api_result["rates"]["USDUSD"]["rate"])
-        real_fx["USDKRW"] = float(api_result["rates"]["USDKRW"]["rate"])
-        real_fx["USDEUR"] = float(api_result["rates"]["USDEUR"]["rate"])
-        real_fx["USDCNY"] = float(api_result["rates"]["USDCNY"]["rate"])
-        real_fx["USDJPY"] = float(api_result["rates"]["USDJPY"]["rate"])
-        real_fx["USDMNT"] = float(api_result["rates"]["USDMNT"]["rate"])
+        result_real_fx = {"USDUSD":1.0,"USDKRW":1.0,"USDEUR":1.0,"USDCNY":1.0,"USDJPY":1.0,"USDSDR":1.0, "USDMNT":1.0}
+        for currency in api_result["response"]:
+            result_real_fx["USD" + str(currency["symbol"][-3:])] = float(currency["price"].replace(',',''))
+        mnt_url = "https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=MNT&apikey=" + alphavantage_key
+        mnt_api_result = json.loads(requests.get(mnt_url).text)
+        result_real_fx["USDMNT"] = float(mnt_api_result["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
     except:
         printandflush("get currency rate error!")
         err_flag = True
-        real_fx = None
-    return err_flag, real_fx
+        result_real_fx = None
+    return err_flag, result_real_fx
 
 # get real sdr rates
 def get_sdr_rate():
@@ -149,12 +163,12 @@ def get_sdr_rate():
         scrap_start = 'U.S. dollar'
         scrap_result = requests.get(url).text
         scrap_cuthead = scrap_result[scrap_result.index(scrap_start) + len(scrap_start):]
-        sdr_rate = float(scrap_cuthead[:12])
+        result_sdr_rate = float(scrap_cuthead[:12])
     except:
         printandflush("get sdr rate error!")
         err_flag = True
-        sdr_rate = None
-    return err_flag, sdr_rate
+        result_sdr_rate = None
+    return err_flag, result_sdr_rate
 
 # get coinone luna krw price
 def get_coinone_luna_price():
@@ -317,6 +331,8 @@ while main_err_flag:
     time.sleep(0.5)
 
 last_prevoted_round = 0
+last_active = []
+last_hash = []
 
 while True:
 
@@ -462,13 +478,30 @@ while True:
                 this_hash[denom] = get_hash(this_salt[denom], this_price[denom], denom, validator)
         
         printandflush("start voting on height " + str(height+1))
-        if last_prevoted_round != current_round:
-            printandflush("we don't have any prevote to vote. only prevote...")
-            broadcast_prevote(this_hash)
+        
+        # check hash match
+        my_current_prevotes = get_my_current_prevotes()
+        if last_hash == []:
+            hash_match_flag = False
         else:
+            hash_match_flag = True
+            for vote_hash in last_hash:
+                this_hash_exist = False
+                for prevote in my_current_prevotes:
+                    if str(prevote["hash"]) == vote_hash:
+                        this_hash_exist = True
+                        break
+                if this_hash_exist == False:
+                    hash_match_flag = False
+                    break
+        
+        if hash_match_flag: # if all hashes exist
             # broadcast vote/prevote at the same time!
-            printandflush("broadcast vote/prevote at the same time...")
+            printandflush("broadcast votes/prevotes at the same time...")
             broadcast_all(last_price, last_salt, this_hash)
+        else:
+            printandflush("broadcast prevotes only...")
+            broadcast_prevote(this_hash)
 
         time.sleep(pause_broadcast)
 
@@ -476,12 +509,16 @@ while True:
         last_prevoted_round = next_height_round
         last_price = {}
         last_salt = {}
+        last_hash = []
+        last_active = []
         for denom in active:
             last_price.update({denom:0.0})
             last_salt.update({denom:""})
         for denom in active:
             last_price[denom] = this_price[denom]
             last_salt[denom] = this_salt[denom]
+            last_active.append(denom)
+            last_hash.append(this_hash[denom])
         last_swap_price = []
         for item in swap_price:
             last_swap_price.append(item)
