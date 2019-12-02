@@ -11,6 +11,7 @@ import hashlib
 import json
 import logging
 import multiprocessing
+import concurrent.futures
 import os
 import subprocess
 import time
@@ -537,22 +538,19 @@ while True:
         # get external data
         all_err_flag = False
         ts = time.time()
-        p = multiprocessing.Pool(5)
-        res_fx, res_sdr, res_coinone, res_gopax, res_gdac = p.map(lambda f: f(), [
-            get_fx_rate,
-            get_sdr_rate,
-            get_coinone_luna_price,
-            get_gopax_luna_price,
-            get_gdac_luna_price,
-        ])
 
-        p.close()
-        p.join()
-        fx_err_flag, real_fx = res_fx
-        sdr_err_flag, sdr_rate = res_sdr
-        coinone_err_flag, coinone_luna_price, coinone_luna_base, coinone_luna_midprice_krw = res_coinone
-        gopax_err_flag, gopax_luna_price, gopax_luna_base, gopax_luna_midprice_krw = res_gopax
-        gdac_err_flag, gdac_luna_price, gdac_luna_base, gdac_luna_midprice_krw = res_gdac
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            res_fx = executor.submit(get_fx_rate)
+            res_sdr = executor.submit(get_sdr_rate)
+            res_coinone = executor.submit(get_coinone_luna_price)
+            res_gopax = executor.submit(get_gopax_luna_price)
+            res_gdac = executor.submit(get_gdac_luna_price)
+
+        fx_err_flag, real_fx = res_fx.result()
+        sdr_err_flag, sdr_rate = res_sdr.result()
+        coinone_err_flag, coinone_luna_price, coinone_luna_base, coinone_luna_midprice_krw = res_coinone.result()
+        gopax_err_flag, gopax_luna_price, gopax_luna_base, gopax_luna_midprice_krw = res_gopax.result()
+        gdac_err_flag, gdac_luna_price, gdac_luna_base, gdac_luna_midprice_krw = res_gdac.result()
         coinone_share = coinone_share_default
         gopax_share = gopax_share_default
         gdac_share = gdac_share_default
