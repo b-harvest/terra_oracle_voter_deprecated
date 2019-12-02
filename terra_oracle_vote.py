@@ -417,7 +417,7 @@ def broadcast_messages(messages):
     }
 
     logger.info("Signing...")
-    json.dump(open("tx_oracle_prevote.json", 'w'), tx_json)
+    json.dump(tx_json, open("tx_oracle_prevote.json", 'w'))
 
     cmd_output = subprocess.check_output([
         terracli,
@@ -429,7 +429,7 @@ def broadcast_messages(messages):
     ], input=key_password + b'\n').decode()
 
     tx_json_signed = json.loads(cmd_output)
-    json.dump(open("tx_oracle_prevote_signed.json", 'w'), tx_json_signed)
+    json.dump(tx_json_signed, open("tx_oracle_prevote_signed.json", 'w'))
 
     logger.info("Broadcasting...")
     cmd_output = subprocess.check_output([
