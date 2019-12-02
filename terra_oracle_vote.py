@@ -115,7 +115,7 @@ def telegram(message):
 
     try:
         requests.post(
-            f"https://api.telegram.org/bot/{telegram_token}/sendMessage",
+            "https://api.telegram.org/bot/{}/sendMessage".format(telegram_token),
             json={
                 'chat_id': telegram_chat_id,
                 'text': message
@@ -138,7 +138,7 @@ def slack(message):
 
 def get_current_misses():
     try:
-        result = session.get(f"{rpc_address}/oracle/voters/{validator}/miss", timeout=http_timeout).json()
+        result = session.get("{}/oracle/voters/{}/miss".format(rpc_address, validator), timeout=http_timeout).json()
         misses = int(result["result"])
         height = int(result["height"])
         return misses, height
@@ -149,7 +149,7 @@ def get_current_misses():
 
 def get_current_prevotes(denom):
     try:
-        return session.get(f"{rpc_address}/oracle/denoms/{denom}/prevotes", timeout=http_timeout).json()
+        return session.get("{}/oracle/denoms/{}/prevotes".format(rpc_address, denom), timeout=http_timeout).json()
     except:
         logging.exception("Error in get_current_prevotes")
         return False
@@ -157,7 +157,7 @@ def get_current_prevotes(denom):
 
 def get_current_votes(denom):
     try:
-        result = session.get(f"{rpc_address}/oracle/denoms/{denom}/votes", timeout=http_timeout).json()
+        result = session.get("{}/oracle/denoms/{}/votes".format(rpc_address, denom), timeout=http_timeout).json()
         return result
     except:
         logging.exception("Error in get_current_votes")
@@ -166,7 +166,7 @@ def get_current_votes(denom):
 
 def get_my_current_prevotes():
     try:
-        result = session.get(f"{rpc_address}/oracle/voters/{validator}/prevotes", timeout=http_timeout).json()
+        result = session.get("{}/oracle/voters/{}/prevotes".format(rpc_address, validator), timeout=http_timeout).json()
         result_vote = []
         for vote in result["result"]:
             if str(vote["voter"]) == str(validator):
@@ -181,7 +181,7 @@ def get_my_current_prevotes():
 def get_latest_block():
     err_flag = False
     try:
-        result = session.get(f"{rpc_address}/blocks/latest", timeout=http_timeout).json()
+        result = session.get("{}/blocks/latest".format(rpc_address), timeout=http_timeout).json()
         latest_block_height = int(result["block_meta"]["header"]["height"])
         latest_block_time = result["block_meta"]["header"]["time"]
     except:
@@ -365,7 +365,7 @@ def get_gdac_luna_price():
 def get_swap_price():
     err_flag = False
     try:
-        result = session.get(f"{rpc_address}/oracle/denoms/exchange_rates", timeout=http_timeout).json()
+        result = session.get("{}/oracle/denoms/exchange_rates".format(rpc_address), timeout=http_timeout).json()
     except:
         logger.exception("Error in get_swap_price")
         result = []
@@ -376,7 +376,7 @@ def get_swap_price():
 
 def get_hash(salt, price, denom, validator):
     m = hashlib.sha256()
-    m.update(f"{salt}:{price}:{denom}:{validator}".encode('utf-8'))
+    m.update("{}:{}:{}:{}".format(salt, price, denom, validator).encode('utf-8'))
     result = m.hexdigest()[:40]
     return result
 
@@ -523,7 +523,7 @@ while True:
         else:
             active = hardfix_active_set
 
-        logger.info(f"Active set: {active}")
+        logger.info("Active set: {}".format(active))
 
         # get external data
         all_err_flag = False
@@ -739,14 +739,14 @@ while True:
 
         if currentheight > 0:
             misspercentage = round(float(currentmisses) / float(currentheight) * 100, 2)
-            logger.info(f"Current miss percentage: {misspercentage}%")
+            logger.info("Current miss percentage: {}%".format(misspercentage))
 
         if misses == 0:
             misses = currentmisses
 
         if currentmisses > misses:
             # we have new misses, alert telegram
-            alarm_content = f"Terra Oracle misses went from {misses} to {currentmisses} ({misspercentage}%)"
+            alarm_content = "Terra Oracle misses went from {} to {} ({}%)".format(misses, currentmisses, misspercentage)
             logger.error(alarm_content)
 
             if alertmisses:
