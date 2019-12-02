@@ -517,8 +517,16 @@ while True:
     current_round = int(float(height - 1) / round_block_num)
     next_height_round = int(float(height) / round_block_num)
 
-    if next_height_round > last_prevoted_round and ((current_round + 1) * round_block_num - height == 0 or (
-            current_round + 1) * round_block_num - height > 3):
+    num_blocks_till_next_round = (current_round + 1) * round_block_num - height
+
+    logger.debug("current_round: %d", current_round)
+    logger.debug("next_height_round: %d", next_height_round)
+    logger.debug("last_prevoted_round: %d", last_prevoted_round)
+    logger.debug("height: %d", height)
+    logger.debug("num_blocks_till_next_round: %d", num_blocks_till_next_round)
+
+    if next_height_round > last_prevoted_round and (
+            num_blocks_till_next_round == 0 or num_blocks_till_next_round > 3):
 
         # get active set of denoms
         res_swap = get_swap_price()
@@ -766,6 +774,6 @@ while True:
     else:
         logger.info("{height}: wait {num_blocks} blocks until this round ends...".format(
             height=height,
-            num_blocks=(current_round + 1) * round_block_num - height))
+            num_blocks=num_blocks_till_next_round))
 
     time.sleep(1)
