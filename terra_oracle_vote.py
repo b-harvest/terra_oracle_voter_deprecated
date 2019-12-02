@@ -138,7 +138,9 @@ def slack(message):
 
 def get_current_misses():
     try:
-        result = session.get("{}/oracle/voters/{}/miss".format(rpc_address, validator), timeout=http_timeout).json()
+        result = session.get(
+            "{}/oracle/voters/{}/miss".format(rpc_address, validator),
+            timeout=http_timeout).json()
         misses = int(result["result"])
         height = int(result["height"])
         return misses, height
@@ -149,7 +151,9 @@ def get_current_misses():
 
 def get_current_prevotes(denom):
     try:
-        return session.get("{}/oracle/denoms/{}/prevotes".format(rpc_address, denom), timeout=http_timeout).json()
+        return session.get(
+            "{}/oracle/denoms/{}/prevotes".format(rpc_address, denom),
+            timeout=http_timeout).json()
     except:
         logging.exception("Error in get_current_prevotes")
         return False
@@ -157,7 +161,9 @@ def get_current_prevotes(denom):
 
 def get_current_votes(denom):
     try:
-        result = session.get("{}/oracle/denoms/{}/votes".format(rpc_address, denom), timeout=http_timeout).json()
+        result = session.get(
+            "{}/oracle/denoms/{}/votes".format(rpc_address, denom),
+            timeout=http_timeout).json()
         return result
     except:
         logging.exception("Error in get_current_votes")
@@ -166,7 +172,9 @@ def get_current_votes(denom):
 
 def get_my_current_prevotes():
     try:
-        result = session.get("{}/oracle/voters/{}/prevotes".format(rpc_address, validator), timeout=http_timeout).json()
+        result = session.get(
+            "{}/oracle/voters/{}/prevotes".format(rpc_address, validator),
+            timeout=http_timeout).json()
         result_vote = []
         for vote in result["result"]:
             if str(vote["voter"]) == str(validator):
@@ -248,8 +256,8 @@ def get_sdr_rate():
         # get sdr
         url = "https://www.imf.org/external/np/fin/data/rms_five.aspx?tsvflag=Y"
         data = session.get(url, timeout=http_timeout).text
-        rate = next(filter(lambda x: x.startswith("U.S. dollar"), data.splitlines())).split('\t')[2]
-        return rate
+        result_sdr_rate = next(filter(lambda x: x.startswith("U.S. dollar"),
+                                      data.splitlines())).split('\t')[2]
     except:
         logging.exception("Error in get_sdr_rate")
         err_flag = True
@@ -365,7 +373,9 @@ def get_gdac_luna_price():
 def get_swap_price():
     err_flag = False
     try:
-        result = session.get("{}/oracle/denoms/exchange_rates".format(rpc_address), timeout=http_timeout).json()
+        result = session.get(
+            "{}/oracle/denoms/exchange_rates".format(rpc_address),
+            timeout=http_timeout).json()
     except:
         logger.exception("Error in get_swap_price")
         result = []
@@ -747,7 +757,8 @@ while True:
 
         if currentmisses > misses:
             # we have new misses, alert telegram
-            alarm_content = "Terra Oracle misses went from {} to {} ({}%)".format(misses, currentmisses, misspercentage)
+            alarm_content = "Terra Oracle misses went from {} to {} ({}%)".format(
+                misses, currentmisses, misspercentage)
             logger.error(alarm_content)
 
             if alertmisses:
