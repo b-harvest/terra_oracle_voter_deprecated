@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 User=tr-service
 WorkingDirectory=/home/ubuntu/terra_oracle_voter
-ExecStart=/usr/bin/python3 /home/ubuntu/terra_oracle_voter/terra_oracle_vote.py
+ExecStart=/usr/bin/python3 -u /home/ubuntu/terra_oracle_voter/terra_oracle_vote.py
 Restart=always
 RestartSec=3
 
