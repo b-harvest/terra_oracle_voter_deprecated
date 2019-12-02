@@ -35,7 +35,6 @@ stop_oracle_trigger_recent_diverge = float(os.getenv("STOP_ORACLE_RECENT_DIVERGE
 stop_oracle_trigger_exchange_diverge = float(os.getenv("STOP_ORACLE_EXCHANGE_DIVERGENCE", "0.1"))
 # vote negative price when bid-ask price is wider than bid_ask_spread_max
 bid_ask_spread_max = float(os.getenv("BID_ASK_SPREAD_MAX", "0.05"))
-pause_broadcast = float(os.getenv("PAUSE_BROADCAST", "1.0"))
 # oracle feeder address
 feeder = os.getenv("FEEDER_ADDRESS", "")
 # validator address
@@ -724,8 +723,6 @@ while True:
         else:
             logger.info("Broadcast prevotes only...")
             broadcast_prevote(this_hash)
-
-        time.sleep(pause_broadcast)
 
         # update last_prevoted_round
         last_prevoted_round = next_height_round
