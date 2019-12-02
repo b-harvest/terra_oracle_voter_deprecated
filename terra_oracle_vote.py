@@ -573,7 +573,7 @@ while True:
             gdac_share = 0
 
         if not all_err_flag:
-            real_fx["USDSDR"] = sdr_rate
+            real_fx["USDSDR"] = float(sdr_rate)
 
             # ignore gopax if it diverge from coinone price or its bid-ask price is wider than bid_ask_spread_max
             if gopax_share > 0:
