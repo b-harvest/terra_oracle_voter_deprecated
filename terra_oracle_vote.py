@@ -40,7 +40,7 @@ feeder = os.getenv("FEEDER_ADDRESS", "")
 # validator address
 validator = os.getenv("VALIDATOR_ADDRESS", "")
 key_name = os.getenv("KEY_NAME", "")
-key_password = os.getenv("KEY_PASSWORD", "")
+key_password = os.getenv("KEY_PASSWORD", "").encode()
 fee_denom = os.getenv("FEE_DENOM", "ukrw")
 fee_gas = os.getenv("FEE_GAS", "150000")
 fee_amount = os.getenv("FEE_AMOUNT", "1500")
@@ -424,7 +424,7 @@ def broadcast_messages(messages):
         "--chain-id", chain_id,
         "--home", home_cli,
         "--node", node
-    ], input=key_password + '\n').decode()
+    ], input=key_password + b'\n').decode()
 
     tx_json_signed = json.loads(cmd_output)
     json.dump(open("tx_oracle_prevote_signed.json", 'w'), tx_json_signed)
@@ -438,7 +438,7 @@ def broadcast_messages(messages):
         "--chain-id", chain_id,
         "--home", home_cli,
         "--node", node,
-    ], input=key_password + '\n').decode()
+    ], input=key_password + b'\n').decode()
 
     return json.loads(cmd_output)
 
