@@ -62,6 +62,7 @@ price_divergence_alert = os.getenv("PRICE_ALERTS", "false") == "true"
 vwma_period = int(os.getenv("VWMA_PERIOD", str(3 * 60)))  # in seconds
 misses = int(os.getenv("MISSES", "0"))
 alertmisses = os.getenv("MISS_ALERTS", "true") == "true"
+debug = os.getenv("DEBUG", "false") == "true"
 
 # parameters
 fx_map = {
@@ -91,7 +92,7 @@ round_block_num = 5.0
 # set last update time
 last_height = 0
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG if debug else logging.INFO)
 logger = logging.root
 
 # By default, python-requests does not use a timeout. We need to specify
