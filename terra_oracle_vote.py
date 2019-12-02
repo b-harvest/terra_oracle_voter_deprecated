@@ -464,21 +464,21 @@ def broadcast_all(vote_price, vote_salt, prevote_hash):
     return broadcast_messages(
         [
             {
-                "type": "oracle/MsgExchangeRatePrevote",
+                "type": "oracle/MsgExchangeRateVote",
                 "value": {
-                    "hash": str(prevote_hash[denom]),
-                    "denom": str(denom),
+                    "exchange_rate": str(vote_price[denom]),
+                    "salt": str(vote_salt[denom]),
+                    "denom": denom,
                     "feeder": feeder,
                     "validator": validator
                 }
             } for denom in active
         ] + [
             {
-                "type": "oracle/MsgExchangeRateVote",
+                "type": "oracle/MsgExchangeRatePrevote",
                 "value": {
-                    "exchange_rate": str(vote_price[denom]),
-                    "salt": str(vote_salt[denom]),
-                    "denom": denom,
+                    "hash": str(prevote_hash[denom]),
+                    "denom": str(denom),
                     "feeder": feeder,
                     "validator": validator
                 }
