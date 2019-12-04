@@ -528,9 +528,20 @@ while True:
     if next_height_round > last_prevoted_round and (
             num_blocks_till_next_round == 0 or num_blocks_till_next_round > 3):
 
-        # get active set of denoms
-        res_swap = get_swap_price()
-        swap_price_err_flag, swap_price = res_swap
+        # Get external data
+        all_err_flag = False
+        ts = time.time()
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            res_swap = executor.submit(get_swap_price)
+            res_fx = executor.submit(get_fx_rate)
+            res_sdr = executor.submit(get_sdr_rate)
+            res_coinone = executor.submit(get_coinone_luna_price)
+            res_gopax = executor.submit(get_gopax_luna_price)
+            res_gdac = executor.submit(get_gdac_luna_price)
+
+        # Get active set of denoms
+        swap_price_err_flag, swap_price = res_swap.result()
 
         if swap_price["result"] is None:
             swap_price["result"] = []
@@ -544,22 +555,12 @@ while True:
 
         logger.info("Active set: {}".format(active))
 
-        # get external data
-        all_err_flag = False
-        ts = time.time()
-
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            res_fx = executor.submit(get_fx_rate)
-            res_sdr = executor.submit(get_sdr_rate)
-            res_coinone = executor.submit(get_coinone_luna_price)
-            res_gopax = executor.submit(get_gopax_luna_price)
-            res_gdac = executor.submit(get_gdac_luna_price)
-
         fx_err_flag, real_fx = res_fx.result()
         sdr_err_flag, sdr_rate = res_sdr.result()
         coinone_err_flag, coinone_luna_price, coinone_luna_base, coinone_luna_midprice_krw = res_coinone.result()
         gopax_err_flag, gopax_luna_price, gopax_luna_base, gopax_luna_midprice_krw = res_gopax.result()
         gdac_err_flag, gdac_luna_price, gdac_luna_base, gdac_luna_midprice_krw = res_gdac.result()
+
         coinone_share = coinone_share_default
         gopax_share = gopax_share_default
         gdac_share = gdac_share_default
@@ -665,7 +666,7 @@ while True:
             this_hash.update({denom: ""})
             this_salt.update({denom: ""})
 
-        if all_err_flag == False:
+        if not all_err_flag:
 
             # prevote for current round
             for denom in active:
