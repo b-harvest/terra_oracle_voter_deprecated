@@ -334,9 +334,11 @@ def get_gopax_luna_price():
     except:
         logger.exception("Error in get_gopax_luna_price")
         err_flag = True
-        luna_price = None
-        luna_base = None
-        luna_midprice_krw = None
+
+        # gopax_share is set to zero if an error occurs
+        luna_price = 0
+        luna_base = 0
+        luna_midprice_krw = 0
 
     return err_flag, luna_price, luna_base, luna_midprice_krw
 
@@ -363,9 +365,11 @@ def get_gdac_luna_price():
     except:
         logger.exception("Error in get_gdac_luna_price")
         err_flag = True
-        luna_price = None
-        luna_base = None
-        luna_midprice_krw = None
+
+        # gdac_share is set to zero if an error occurs
+        luna_price = 0
+        luna_base = 0
+        luna_midprice_krw = 0
 
     return err_flag, luna_price, luna_base, luna_midprice_krw
 
