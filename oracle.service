@@ -10,5 +10,19 @@ ExecStart=/usr/bin/python3 -u /home/ubuntu/terra_oracle_voter/terra_oracle_vote.
 Restart=always
 RestartSec=3
 
+# Required configuration values
+Environment=FCSAPI_KEY=
+Environment=ALPHAVANTAGE_KEY=
+Environment=FEEDER_ADDRESS=
+Environment=VALIDATOR_ADDRESS=
+Environment=KEY_NAME=
+Environment=KEY_PASSWORD=
+Environment=HOME_CLI=/path/to/.terracli
+Environment=NODE_RPC=tcp://localhost:26657
+Environment=TERRACLI_BIN=/path/to/terracli
+Environment=TERRA_RPC=https://soju-lcd.terra.dev/
+Environment=CHAIN_ID=
+Environment=MISS_ALERTS=false
+
 [Install]
 WantedBy=multi-user.target
