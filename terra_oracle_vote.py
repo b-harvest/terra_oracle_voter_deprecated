@@ -11,6 +11,7 @@ import hashlib
 import json
 import logging
 import multiprocessing
+import concurrent.futures
 import os
 import subprocess
 import time
@@ -35,13 +36,12 @@ stop_oracle_trigger_recent_diverge = float(os.getenv("STOP_ORACLE_RECENT_DIVERGE
 stop_oracle_trigger_exchange_diverge = float(os.getenv("STOP_ORACLE_EXCHANGE_DIVERGENCE", "0.1"))
 # vote negative price when bid-ask price is wider than bid_ask_spread_max
 bid_ask_spread_max = float(os.getenv("BID_ASK_SPREAD_MAX", "0.05"))
-pause_broadcast = float(os.getenv("PAUSE_BROADCAST", "1.0"))
 # oracle feeder address
 feeder = os.getenv("FEEDER_ADDRESS", "")
 # validator address
 validator = os.getenv("VALIDATOR_ADDRESS", "")
 key_name = os.getenv("KEY_NAME", "")
-key_password = os.getenv("KEY_PASSWORD", "")
+key_password = os.getenv("KEY_PASSWORD", "").encode()
 fee_denom = os.getenv("FEE_DENOM", "ukrw")
 fee_gas = os.getenv("FEE_GAS", "150000")
 fee_amount = os.getenv("FEE_AMOUNT", "1500")
@@ -62,6 +62,7 @@ price_divergence_alert = os.getenv("PRICE_ALERTS", "false") == "true"
 vwma_period = int(os.getenv("VWMA_PERIOD", str(3 * 60)))  # in seconds
 misses = int(os.getenv("MISSES", "0"))
 alertmisses = os.getenv("MISS_ALERTS", "true") == "true"
+debug = os.getenv("DEBUG", "false") == "true"
 
 # parameters
 fx_map = {
@@ -91,7 +92,7 @@ round_block_num = 5.0
 # set last update time
 last_height = 0
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG if debug else logging.INFO)
 logger = logging.root
 
 # By default, python-requests does not use a timeout. We need to specify
@@ -138,7 +139,9 @@ def slack(message):
 
 def get_current_misses():
     try:
-        result = session.get("{}/oracle/voters/{}/miss".format(rpc_address, validator), timeout=http_timeout).json()
+        result = session.get(
+            "{}/oracle/voters/{}/miss".format(rpc_address, validator),
+            timeout=http_timeout).json()
         misses = int(result["result"])
         height = int(result["height"])
         return misses, height
@@ -149,7 +152,9 @@ def get_current_misses():
 
 def get_current_prevotes(denom):
     try:
-        return session.get("{}/oracle/denoms/{}/prevotes".format(rpc_address, denom), timeout=http_timeout).json()
+        return session.get(
+            "{}/oracle/denoms/{}/prevotes".format(rpc_address, denom),
+            timeout=http_timeout).json()
     except:
         logging.exception("Error in get_current_prevotes")
         return False
@@ -157,7 +162,9 @@ def get_current_prevotes(denom):
 
 def get_current_votes(denom):
     try:
-        result = session.get("{}/oracle/denoms/{}/votes".format(rpc_address, denom), timeout=http_timeout).json()
+        result = session.get(
+            "{}/oracle/denoms/{}/votes".format(rpc_address, denom),
+            timeout=http_timeout).json()
         return result
     except:
         logging.exception("Error in get_current_votes")
@@ -166,7 +173,9 @@ def get_current_votes(denom):
 
 def get_my_current_prevotes():
     try:
-        result = session.get("{}/oracle/voters/{}/prevotes".format(rpc_address, validator), timeout=http_timeout).json()
+        result = session.get(
+            "{}/oracle/voters/{}/prevotes".format(rpc_address, validator),
+            timeout=http_timeout).json()
         result_vote = []
         for vote in result["result"]:
             if str(vote["voter"]) == str(validator):
@@ -248,8 +257,8 @@ def get_sdr_rate():
         # get sdr
         url = "https://www.imf.org/external/np/fin/data/rms_five.aspx?tsvflag=Y"
         data = session.get(url, timeout=http_timeout).text
-        rate = next(filter(lambda x: x.startswith("U.S. dollar"), data.splitlines())).split('\t')[2]
-        return rate
+        result_sdr_rate = next(filter(lambda x: x.startswith("U.S. dollar"),
+                                      data.splitlines())).split('\t')[2]
     except:
         logging.exception("Error in get_sdr_rate")
         err_flag = True
@@ -325,9 +334,11 @@ def get_gopax_luna_price():
     except:
         logger.exception("Error in get_gopax_luna_price")
         err_flag = True
-        luna_price = None
-        luna_base = None
-        luna_midprice_krw = None
+
+        # gopax_share is set to zero if an error occurs
+        luna_price = 0
+        luna_base = 0
+        luna_midprice_krw = 0
 
     return err_flag, luna_price, luna_base, luna_midprice_krw
 
@@ -354,9 +365,11 @@ def get_gdac_luna_price():
     except:
         logger.exception("Error in get_gdac_luna_price")
         err_flag = True
-        luna_price = None
-        luna_base = None
-        luna_midprice_krw = None
+
+        # gdac_share is set to zero if an error occurs
+        luna_price = 0
+        luna_base = 0
+        luna_midprice_krw = 0
 
     return err_flag, luna_price, luna_base, luna_midprice_krw
 
@@ -365,7 +378,9 @@ def get_gdac_luna_price():
 def get_swap_price():
     err_flag = False
     try:
-        result = session.get("{}/oracle/denoms/exchange_rates".format(rpc_address), timeout=http_timeout).json()
+        result = session.get(
+            "{}/oracle/denoms/exchange_rates".format(rpc_address),
+            timeout=http_timeout).json()
     except:
         logger.exception("Error in get_swap_price")
         result = []
@@ -406,7 +421,7 @@ def broadcast_messages(messages):
     }
 
     logger.info("Signing...")
-    json.dump(open("tx_oracle_prevote.json", 'w'), tx_json)
+    json.dump(tx_json, open("tx_oracle_prevote.json", 'w'))
 
     cmd_output = subprocess.check_output([
         terracli,
@@ -415,10 +430,10 @@ def broadcast_messages(messages):
         "--chain-id", chain_id,
         "--home", home_cli,
         "--node", node
-    ], input=key_password + '\n').decode()
+    ], input=key_password + b'\n').decode()
 
     tx_json_signed = json.loads(cmd_output)
-    json.dump(open("tx_oracle_prevote_signed.json", 'w'), tx_json_signed)
+    json.dump(tx_json_signed, open("tx_oracle_prevote_signed.json", 'w'))
 
     logger.info("Broadcasting...")
     cmd_output = subprocess.check_output([
@@ -429,7 +444,7 @@ def broadcast_messages(messages):
         "--chain-id", chain_id,
         "--home", home_cli,
         "--node", node,
-    ], input=key_password + '\n').decode()
+    ], input=key_password + b'\n').decode()
 
     return json.loads(cmd_output)
 
@@ -455,21 +470,21 @@ def broadcast_all(vote_price, vote_salt, prevote_hash):
     return broadcast_messages(
         [
             {
-                "type": "oracle/MsgExchangeRatePrevote",
+                "type": "oracle/MsgExchangeRateVote",
                 "value": {
-                    "hash": str(prevote_hash[denom]),
-                    "denom": str(denom),
+                    "exchange_rate": str(vote_price[denom]),
+                    "salt": str(vote_salt[denom]),
+                    "denom": denom,
                     "feeder": feeder,
                     "validator": validator
                 }
             } for denom in active
         ] + [
             {
-                "type": "oracle/MsgExchangeRateVote",
+                "type": "oracle/MsgExchangeRatePrevote",
                 "value": {
-                    "exchange_rate": str(vote_price[denom]),
-                    "salt": str(vote_salt[denom]),
-                    "denom": denom,
+                    "hash": str(prevote_hash[denom]),
+                    "denom": str(denom),
                     "feeder": feeder,
                     "validator": validator
                 }
@@ -506,12 +521,31 @@ while True:
     current_round = int(float(height - 1) / round_block_num)
     next_height_round = int(float(height) / round_block_num)
 
-    if next_height_round > last_prevoted_round and ((current_round + 1) * round_block_num - height == 0 or (
-            current_round + 1) * round_block_num - height > 3):
+    num_blocks_till_next_round = (current_round + 1) * round_block_num - height
 
-        # get active set of denoms
-        res_swap = get_swap_price()
-        swap_price_err_flag, swap_price = res_swap
+    logger.debug("current_round: %d", current_round)
+    logger.debug("next_height_round: %d", next_height_round)
+    logger.debug("last_prevoted_round: %d", last_prevoted_round)
+    logger.debug("height: %d", height)
+    logger.debug("num_blocks_till_next_round: %d", num_blocks_till_next_round)
+
+    if next_height_round > last_prevoted_round and (
+            num_blocks_till_next_round == 0 or num_blocks_till_next_round > 3):
+
+        # Get external data
+        all_err_flag = False
+        ts = time.time()
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            res_swap = executor.submit(get_swap_price)
+            res_fx = executor.submit(get_fx_rate)
+            res_sdr = executor.submit(get_sdr_rate)
+            res_coinone = executor.submit(get_coinone_luna_price)
+            res_gopax = executor.submit(get_gopax_luna_price)
+            res_gdac = executor.submit(get_gdac_luna_price)
+
+        # Get active set of denoms
+        swap_price_err_flag, swap_price = res_swap.result()
 
         if swap_price["result"] is None:
             swap_price["result"] = []
@@ -525,25 +559,12 @@ while True:
 
         logger.info("Active set: {}".format(active))
 
-        # get external data
-        all_err_flag = False
-        ts = time.time()
-        p = multiprocessing.Pool(5)
-        res_fx, res_sdr, res_coinone, res_gopax, res_gdac = p.map(lambda f: f(), [
-            get_fx_rate,
-            get_sdr_rate,
-            get_coinone_luna_price,
-            get_gopax_luna_price,
-            get_gdac_luna_price,
-        ])
+        fx_err_flag, real_fx = res_fx.result()
+        sdr_err_flag, sdr_rate = res_sdr.result()
+        coinone_err_flag, coinone_luna_price, coinone_luna_base, coinone_luna_midprice_krw = res_coinone.result()
+        gopax_err_flag, gopax_luna_price, gopax_luna_base, gopax_luna_midprice_krw = res_gopax.result()
+        gdac_err_flag, gdac_luna_price, gdac_luna_base, gdac_luna_midprice_krw = res_gdac.result()
 
-        p.close()
-        p.join()
-        fx_err_flag, real_fx = res_fx
-        sdr_err_flag, sdr_rate = res_sdr
-        coinone_err_flag, coinone_luna_price, coinone_luna_base, coinone_luna_midprice_krw = res_coinone
-        gopax_err_flag, gopax_luna_price, gopax_luna_base, gopax_luna_midprice_krw = res_gopax
-        gdac_err_flag, gdac_luna_price, gdac_luna_base, gdac_luna_midprice_krw = res_gdac
         coinone_share = coinone_share_default
         gopax_share = gopax_share_default
         gdac_share = gdac_share_default
@@ -557,7 +578,7 @@ while True:
             gdac_share = 0
 
         if not all_err_flag:
-            real_fx["USDSDR"] = sdr_rate
+            real_fx["USDSDR"] = float(sdr_rate)
 
             # ignore gopax if it diverge from coinone price or its bid-ask price is wider than bid_ask_spread_max
             if gopax_share > 0:
@@ -603,10 +624,14 @@ while True:
                 all_err_flag = True
 
         if not all_err_flag:
-            # weighted average
-            luna_midprice_krw = (float(coinone_luna_midprice_krw) * coinone_share + float(
-                gopax_luna_midprice_krw) * gopax_share + float(gdac_luna_midprice_krw) * gdac_share) / (
-                                        coinone_share + gopax_share + gdac_share)
+            # Weighted average
+            luna_midprice_krw = (
+                    (float(coinone_luna_midprice_krw) * coinone_share +
+                     float(gopax_luna_midprice_krw) * gopax_share +
+                     float(gdac_luna_midprice_krw) * gdac_share
+                     ) / (coinone_share + gopax_share + gdac_share)
+            )
+
             luna_base = coinone_luna_base
 
             # reorganize data
@@ -649,7 +674,7 @@ while True:
             this_hash.update({denom: ""})
             this_salt.update({denom: ""})
 
-        if all_err_flag == False:
+        if not all_err_flag:
 
             # prevote for current round
             for denom in active:
@@ -715,8 +740,6 @@ while True:
             logger.info("Broadcast prevotes only...")
             broadcast_prevote(this_hash)
 
-        time.sleep(pause_broadcast)
-
         # update last_prevoted_round
         last_prevoted_round = next_height_round
         last_price = {}
@@ -747,7 +770,8 @@ while True:
 
         if currentmisses > misses:
             # we have new misses, alert telegram
-            alarm_content = "Terra Oracle misses went from {} to {} ({}%)".format(misses, currentmisses, misspercentage)
+            alarm_content = "Terra Oracle misses went from {} to {} ({}%)".format(
+                misses, currentmisses, misspercentage)
             logger.error(alarm_content)
 
             if alertmisses:
@@ -759,6 +783,6 @@ while True:
     else:
         logger.info("{height}: wait {num_blocks} blocks until this round ends...".format(
             height=height,
-            num_blocks=(current_round + 1) * round_block_num - height))
+            num_blocks=num_blocks_till_next_round))
 
     time.sleep(1)
