@@ -20,7 +20,7 @@ Environment=KEY_PASSWORD=
 Environment=HOME_CLI=/path/to/.terracli
 Environment=NODE_RPC=tcp://localhost:26657
 Environment=TERRACLI_BIN=/path/to/terracli
-Environment=TERRA_RPC=https://soju-lcd.terra.dev/
+Environment=TERRA_LCD=https://soju-lcd.terra.dev/
 Environment=CHAIN_ID=
 Environment=MISS_ALERTS=false
 
