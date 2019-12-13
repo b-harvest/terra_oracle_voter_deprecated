@@ -50,8 +50,8 @@ home_cli = os.getenv("HOME_CLI", "/home/ubuntu/.terracli")
 node = os.getenv("NODE_RPC", "tcp://52.78.69.160:26657")
 # path to terracli binary
 terracli = os.getenv("TERRACLI_BIN", "sudo /home/ubuntu/go/bin/terracli")
-# rpc to receive swap price information
-rpc_address = os.getenv("TERRA_RPC", "https://soju-lcd.terra.dev/")
+# lcd to receive swap price information
+lcd_address = os.getenv("TERRA_LCD", "https://soju-lcd.terra.dev/")
 # default coinone weight
 coinone_share_default = float(os.getenv("COINONE_SHARE_DEFAULT", "0.60"))
 # default gopax weight
@@ -140,7 +140,7 @@ def slack(message):
 def get_current_misses():
     try:
         result = session.get(
-            "{}/oracle/voters/{}/miss".format(rpc_address, validator),
+            "{}/oracle/voters/{}/miss".format(lcd_address, validator),
             timeout=http_timeout).json()
         misses = int(result["result"])
         height = int(result["height"])
@@ -153,7 +153,7 @@ def get_current_misses():
 def get_current_prevotes(denom):
     try:
         return session.get(
-            "{}/oracle/denoms/{}/prevotes".format(rpc_address, denom),
+            "{}/oracle/denoms/{}/prevotes".format(lcd_address, denom),
             timeout=http_timeout).json()
     except:
         logging.exception("Error in get_current_prevotes")
@@ -163,7 +163,7 @@ def get_current_prevotes(denom):
 def get_current_votes(denom):
     try:
         result = session.get(
-            "{}/oracle/denoms/{}/votes".format(rpc_address, denom),
+            "{}/oracle/denoms/{}/votes".format(lcd_address, denom),
             timeout=http_timeout).json()
         return result
     except:
@@ -174,7 +174,7 @@ def get_current_votes(denom):
 def get_my_current_prevotes():
     try:
         result = session.get(
-            "{}/oracle/voters/{}/prevotes".format(rpc_address, validator),
+            "{}/oracle/voters/{}/prevotes".format(lcd_address, validator),
             timeout=http_timeout).json()
         result_vote = []
         for vote in result["result"]:
@@ -190,7 +190,7 @@ def get_my_current_prevotes():
 def get_latest_block():
     err_flag = False
     try:
-        result = session.get("{}/blocks/latest".format(rpc_address), timeout=http_timeout).json()
+        result = session.get("{}/blocks/latest".format(lcd_address), timeout=http_timeout).json()
         latest_block_height = int(result["block_meta"]["header"]["height"])
         latest_block_time = result["block_meta"]["header"]["time"]
     except:
@@ -379,7 +379,7 @@ def get_swap_price():
     err_flag = False
     try:
         result = session.get(
-            "{}/oracle/denoms/exchange_rates".format(rpc_address),
+            "{}/oracle/denoms/exchange_rates".format(lcd_address),
             timeout=http_timeout).json()
     except:
         logger.exception("Error in get_swap_price")
