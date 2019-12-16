@@ -31,7 +31,7 @@ fcsapi_key = os.getenv("FCSAPI_KEY", "")
 # https://www.alphavantage.co/
 alphavantage_key = os.getenv("ALPHAVANTAGE_KEY", "")
 # stop oracle when price change exceeds stop_oracle_trigger
-stop_oracle_trigger_recent_diverge = float(os.getenv("STOP_ORACLE_RECENT_DIVERGENCE", "0.1"))
+stop_oracle_trigger_recent_diverge = float(os.getenv("STOP_ORACLE_RECENT_DIVERGENCE", "999999999999"))
 # stop oracle when price change exceeds stop_oracle_trigger
 stop_oracle_trigger_exchange_diverge = float(os.getenv("STOP_ORACLE_EXCHANGE_DIVERGENCE", "0.1"))
 # vote negative price when bid-ask price is wider than bid_ask_spread_max
@@ -44,20 +44,20 @@ key_name = os.getenv("KEY_NAME", "")
 key_password = os.getenv("KEY_PASSWORD", "").encode()
 fee_denom = os.getenv("FEE_DENOM", "ukrw")
 fee_gas = os.getenv("FEE_GAS", "200000")
-fee_amount = os.getenv("FEE_AMOUNT", "2000")
+fee_amount = os.getenv("FEE_AMOUNT", "4000")
 home_cli = os.getenv("HOME_CLI", "/home/ubuntu/.terracli")
 # node to broadcast the txs
-node = os.getenv("NODE_RPC", "tcp://52.78.69.160:26657")
+node = os.getenv("NODE_RPC", "tcp://127.0.0.1:26657")
 # path to terracli binary
 terracli = os.getenv("TERRACLI_BIN", "sudo /home/ubuntu/go/bin/terracli")
 # lcd to receive swap price information
-lcd_address = os.getenv("TERRA_LCD", "https://soju-lcd.terra.dev/")
+lcd_address = os.getenv("TERRA_LCD", "https://lcd.terra.dev/")
 # default coinone weight
-coinone_share_default = float(os.getenv("COINONE_SHARE_DEFAULT", "0.60"))
+coinone_share_default = float(os.getenv("COINONE_SHARE_DEFAULT", "1.0"))
 # default gopax weight
-gopax_share_default = float(os.getenv("GOPAX_SHARE_DEFAULT", "0.20"))
+gopax_share_default = float(os.getenv("GOPAX_SHARE_DEFAULT", "0"))
 # default gdac weight
-gdac_share_default = float(os.getenv("GDAC_SHARE_DEFAULT", "0.20"))
+gdac_share_default = float(os.getenv("GDAC_SHARE_DEFAULT", "0"))
 price_divergence_alert = os.getenv("PRICE_ALERTS", "false") == "true"
 vwma_period = int(os.getenv("VWMA_PERIOD", str(3 * 60)))  # in seconds
 misses = int(os.getenv("MISSES", "0"))
