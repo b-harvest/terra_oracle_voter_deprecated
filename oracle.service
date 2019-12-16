@@ -18,11 +18,18 @@ Environment=VALIDATOR_ADDRESS=
 Environment=KEY_NAME=
 Environment=KEY_PASSWORD=
 Environment=HOME_CLI=/path/to/.terracli
-Environment=NODE_RPC=tcp://localhost:26657
+Environment=NODE_RPC=tcp://127.0.0.1:26657
 Environment=TERRACLI_BIN=/path/to/terracli
-Environment=TERRA_LCD=https://soju-lcd.terra.dev/
-Environment=CHAIN_ID=
+Environment=TERRA_LCD=https://lcd.terra.dev/
+Environment=CHAIN_ID=columbus-3
 Environment=MISS_ALERTS=false
+Environment=STOP_ORACLE_RECENT_DIVERGENCE=999999999999
+Environment=STOP_ORACLE_EXCHANGE_DIVERGENCE=0.1
+Environment=BID_ASK_SPREAD_MAX=0.05
+Environment=FEE_GAS=200000
+Environment=FEE_AMOUNT=4000
+Environment=VWMA_PERIOD=0
+
 
 [Install]
 WantedBy=multi-user.target
