@@ -97,10 +97,10 @@ logger = logging.root
 
 # By default, python-requests does not use a timeout. We need to specify
 # a timeout on each call to ensure we never get stuck in network IO.
-http_timeout = 60
+http_timeout = 1
 
 # Separate timeout for alerting calls
-alert_http_timeout = 10
+alert_http_timeout = 1
 
 # Global requests session for HTTP/1.1 keepalive
 # (unfortunately, the timeout cannot be set globally)
