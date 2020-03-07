@@ -6,7 +6,6 @@ import asyncio
 import aiohttp
 
 start = time.time()
-session = requests.session()
 http_timeout = 2
 
 async def fx_for(symbol_to):
