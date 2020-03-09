@@ -15,10 +15,12 @@ import concurrent.futures
 import os
 import subprocess
 import time
+import asyncio
 
 # External libraries - installation required.
 # Most Linux distributions have packaged python-requests.
 import requests
+import aiohttp
 
 # User setup
 
@@ -26,8 +28,6 @@ import requests
 slackurl = os.getenv("SLACK_URL", "")
 telegram_token = os.getenv("TELEGRAM_TOKEN", "")
 telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
-# https://fcsapi.com
-fcsapi_key = os.getenv("FCSAPI_KEY", "")
 # https://www.alphavantage.co/
 alphavantage_key = os.getenv("ALPHAVANTAGE_KEY", "")
 # stop oracle when price change exceeds stop_oracle_trigger
@@ -201,20 +201,38 @@ def get_latest_block():
 
     return err_flag, latest_block_height, latest_block_time
 
+# get currency rate async def
+async def fx_for(symbol_to):
+    async with aiohttp.ClientSession() as async_session:
+        response = await async_session.get(
+        "https://www.alphavantage.co/query",
+        timeout=http_timeout,
+            params={
+            'function': 'CURRENCY_EXCHANGE_RATE',
+            'from_currency': 'USD',
+            'to_currency': symbol_to,
+            'apikey': alphavantage_key
+            }
+        )
+        api_result = await response.json()
+        return api_result
+
 
 # get real fx rates
 def get_fx_rate():
     err_flag = False
     try:
         # get currency rate
-        api_result = session.get(
-            "https://fcsapi.com/api/forex/latest",
-            timeout=http_timeout,
-            params={
-                'symbol': 'USD/KRW,USD/EUR,USD/CNY,USD/JPY',
-                'access_key': fcsapi_key
-            }
-        ).json()
+        symbol_list = ["KRW",
+                "EUR",
+                "CNY",
+                "JPY",
+                "XDR",
+                "MNT"]
+
+        loop = asyncio.get_event_loop()
+        futures = [fx_for(symbol_lists) for symbol_lists in symbol_list]
+        api_result = loop.run_until_complete(asyncio.gather(*futures))
 
         result_real_fx = {
             "USDUSD": 1.0,
@@ -226,22 +244,13 @@ def get_fx_rate():
             "USDMNT": 1.0
         }
 
-        for currency in api_result["response"]:
-            result_real_fx["USD" + str(currency["symbol"][-3:])] = float(currency["price"].replace(',', ''))
-
-        mnt_api_result = session.get(
-            "https://www.alphavantage.co/query",
-            timeout=http_timeout,
-            params={
-                'function': 'CURRENCY_EXCHANGE_RATE',
-                'from_currency': 'USD',
-                'to_currency': 'MNT',
-                'apikey': alphavantage_key
-            }
-        ).json()
-
-        result_real_fx["USDMNT"] = float(
-            mnt_api_result["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
+        list_number = 0
+        for symbol in symbol_list:
+            if symbol == "XDR":
+                symbol = "SDR"
+            result_real_fx[symbol] = float(
+                api_result[list_number]["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
+            list_number = list_number +1 
     except:
         logger.exception("Error in get_fx_rate")
         err_flag = True
@@ -249,7 +258,7 @@ def get_fx_rate():
 
     return err_flag, result_real_fx
 
-
+'''Option, receive sdr with paid service switch.
 # get real sdr rates
 def get_sdr_rate():
     err_flag = False
@@ -264,7 +273,7 @@ def get_sdr_rate():
         err_flag = True
         result_sdr_rate = None
     return err_flag, result_sdr_rate
-
+'''
 
 # get coinone luna krw price
 def get_coinone_luna_price():
@@ -539,7 +548,7 @@ while True:
         with concurrent.futures.ThreadPoolExecutor() as executor:
             res_swap = executor.submit(get_swap_price)
             res_fx = executor.submit(get_fx_rate)
-            res_sdr = executor.submit(get_sdr_rate)
+            #res_sdr = executor.submit(get_sdr_rate) sdr receive Option
             res_coinone = executor.submit(get_coinone_luna_price)
             res_gopax = executor.submit(get_gopax_luna_price)
             res_gdac = executor.submit(get_gdac_luna_price)
@@ -560,7 +569,7 @@ while True:
         logger.info("Active set: {}".format(active))
 
         fx_err_flag, real_fx = res_fx.result()
-        sdr_err_flag, sdr_rate = res_sdr.result()
+        #sdr_err_flag, sdr_rate = res_sdr.result() sdr receive Option
         coinone_err_flag, coinone_luna_price, coinone_luna_base, coinone_luna_midprice_krw = res_coinone.result()
         gopax_err_flag, gopax_luna_price, gopax_luna_base, gopax_luna_midprice_krw = res_gopax.result()
         gdac_err_flag, gdac_luna_price, gdac_luna_base, gdac_luna_midprice_krw = res_gdac.result()
@@ -569,16 +578,19 @@ while True:
         gopax_share = gopax_share_default
         gdac_share = gdac_share_default
 
+        '''sdr receive Option
         if fx_err_flag or sdr_err_flag or coinone_err_flag or swap_price_err_flag:
             all_err_flag = True
-
+        '''
+        if fx_err_flag or coinone_err_flag or swap_price_err_flag:
+            all_err_flag = True
         if gopax_err_flag:
             gopax_share = 0
         if gdac_err_flag:
             gdac_share = 0
 
         if not all_err_flag:
-            real_fx["USDSDR"] = float(sdr_rate)
+            #real_fx["USDSDR"] = float(sdr_rate) sdr receive Option
 
             # ignore gopax if it diverge from coinone price or its bid-ask price is wider than bid_ask_spread_max
             if gopax_share > 0:
