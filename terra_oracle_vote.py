@@ -282,7 +282,7 @@ def get_fx_rate():
         for symbol in symbol_list:
             if symbol == "XDR":
                 symbol = "SDR"
-            result_real_fx[symbol] = float(
+            result_real_fx["USD"+symbol] = float(
                 api_result[list_number]["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
             list_number = list_number +1 
     except:
