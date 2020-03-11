@@ -263,7 +263,8 @@ def get_fx_rate():
                 "XDR",
                 "MNT"]
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         futures = [fx_for(symbol_lists) for symbol_lists in symbol_list]
         api_result = loop.run_until_complete(asyncio.gather(*futures))
 
