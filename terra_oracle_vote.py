@@ -15,11 +15,14 @@ import concurrent.futures
 import os
 import subprocess
 import time
+import functools
 import asyncio
 
-# External libraries - installation required.
-# Most Linux distributions have packaged python-requests.
+# External libraries - installation required:
+#  pip3 install --user -r requirements.txt
+#
 import requests
+from prometheus_client import start_http_server, Summary, Counter, Gauge, Histogram
 import aiohttp
 
 # User setup
@@ -63,6 +66,21 @@ vwma_period = int(os.getenv("VWMA_PERIOD", str(3 * 60)))  # in seconds
 misses = int(os.getenv("MISSES", "0"))
 alertmisses = os.getenv("MISS_ALERTS", "true") == "true"
 debug = os.getenv("DEBUG", "false") == "true"
+metrics_port = os.getenv("METRICS_PORT", "19000")
+
+METRIC_MISSES = Gauge("terra_oracle_misses_total", "Total number of oracle misses")
+METRIC_HEIGHT = Gauge("terra_oracle_height", "Block height of the LCD node")
+METRIC_VOTES = Counter("terra_oracle_votes", "Counter of oracle votes")
+
+METRIC_MARKET_PRICE = Gauge("terra_oracle_market_price", "Last market price", ['denom'])
+METRIC_SWAP_PRICE = Gauge("terra_oracle_swap_price", "Last swap price", ['denom'])
+
+METRIC_EXCHANGE_ASK_PRICE = Gauge("terra_oracle_exchange_ask_price", "Exchange ask price", ['exchange', 'denom'])
+METRIC_EXCHANGE_MID_PRICE = Gauge("terra_oracle_exchange_mid_price", "Exchange mid price", ['exchange', 'denom'])
+METRIC_EXCHANGE_BID_PRICE = Gauge("terra_oracle_exchange_bid_price", "Exchange bid price", ['exchange', 'denom'])
+
+METRIC_OUTBOUND_ERROR = Counter("terra_oracle_request_errors", "Outbound HTTP request error count", ["remote"])
+METRIC_OUTBOUND_LATENCY = Histogram("terra_oracle_request_latency", "Outbound HTTP request latency", ["remote"])
 
 # parameters
 fx_map = {
@@ -109,7 +127,14 @@ session = requests.session()
 # Be friendly to the APIs we use and specify a user-agent
 session.headers['User-Agent'] = "bharvest-oracle-voter/0 (+https://github.com/b-harvest/terra_oracle_voter)"
 
+# Start metrics server in a background thread
+start_http_server(int(metrics_port))
 
+def time_request(remote):
+    """Returns a decorator that measures execution time."""
+    return METRIC_OUTBOUND_LATENCY.labels(remote).time()
+
+@time_request('telegram')
 def telegram(message):
     if not telegram_token:
         return
@@ -126,7 +151,7 @@ def telegram(message):
     except:
         logging.exception("Error while sending telegram alert")
 
-
+@time_request('slack')
 def slack(message):
     if not slackurl:
         return
@@ -134,9 +159,10 @@ def slack(message):
     try:
         requests.post(slackurl, json={"text": message}, timeout=alert_http_timeout)
     except:
+        METRIC_OUTBOUND_ERROR.labels('slack').inc()
         logging.exception("Error while sending Slack alert")
 
-
+@time_request('lcd')
 def get_current_misses():
     try:
         result = session.get(
@@ -146,20 +172,22 @@ def get_current_misses():
         height = int(result["height"])
         return misses, height
     except:
+        METRIC_OUTBOUND_ERROR.labels('lcd').inc()
         logging.exception("Error in get_current_misses")
         return 0, 0
 
-
+@time_request('lcd')
 def get_current_prevotes(denom):
     try:
         return session.get(
             "{}/oracle/denoms/{}/prevotes".format(lcd_address, denom),
             timeout=http_timeout).json()
     except:
+        METRIC_OUTBOUND_ERROR.labels('lcd').inc()
         logging.exception("Error in get_current_prevotes")
         return False
 
-
+@time_request('lcd')
 def get_current_votes(denom):
     try:
         result = session.get(
@@ -167,10 +195,11 @@ def get_current_votes(denom):
             timeout=http_timeout).json()
         return result
     except:
+        METRIC_OUTBOUND_ERROR.labels('lcd').inc()
         logging.exception("Error in get_current_votes")
         return False
 
-
+@time_request('lcd')
 def get_my_current_prevotes():
     try:
         result = session.get(
@@ -182,11 +211,13 @@ def get_my_current_prevotes():
                 result_vote.append(vote)
         return result_vote
     except:
+        METRIC_OUTBOUND_ERROR.labels('lcd').inc()
         logging.exception("Error in get_my_current_prevotes")
         return False
 
 
 # get latest block info
+@time_request('lcd')
 def get_latest_block():
     err_flag = False
     try:
@@ -194,6 +225,7 @@ def get_latest_block():
         latest_block_height = int(result["block_meta"]["header"]["height"])
         latest_block_time = result["block_meta"]["header"]["time"]
     except:
+        METRIC_OUTBOUND_ERROR.labels('lcd').inc()
         logger.exception("Error in get_latest_block")
         err_flag = True
         latest_block_height = None
@@ -219,6 +251,7 @@ async def fx_for(symbol_to):
 
 
 # get real fx rates
+@time_request('alphavantage')
 def get_fx_rate():
     err_flag = False
     try:
@@ -252,6 +285,7 @@ def get_fx_rate():
                 api_result[list_number]["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
             list_number = list_number +1 
     except:
+        METRIC_OUTBOUND_ERROR.labels('alphavantage').inc()
         logger.exception("Error in get_fx_rate")
         err_flag = True
         result_real_fx = None
@@ -260,6 +294,7 @@ def get_fx_rate():
 
 '''Option, receive sdr with paid service switch.
 # get real sdr rates
+@time_request('imf')
 def get_sdr_rate():
     err_flag = False
     try:
@@ -269,6 +304,7 @@ def get_sdr_rate():
         result_sdr_rate = next(filter(lambda x: x.startswith("U.S. dollar"),
                                       data.splitlines())).split('\t')[2]
     except:
+        METRIC_OUTBOUND_ERROR.labels('imf').inc()
         logging.exception("Error in get_sdr_rate")
         err_flag = True
         result_sdr_rate = None
@@ -276,6 +312,7 @@ def get_sdr_rate():
 '''
 
 # get coinone luna krw price
+@time_request('coinone')
 def get_coinone_luna_price():
     err_flag = False
     try:
@@ -312,6 +349,7 @@ def get_coinone_luna_price():
         luna_base = "USDKRW"
         luna_midprice_krw = float(luna_price["midprice"])
     except:
+        METRIC_OUTBOUND_ERROR.labels('coinone').inc()
         logger.exception("Error in get_coinone_luna_price")
         err_flag = True
         luna_price = None
@@ -322,6 +360,7 @@ def get_coinone_luna_price():
 
 
 # get gopax luna krw price
+@time_request('gopax')
 def get_gopax_luna_price():
     err_flag = False
     try:
@@ -341,6 +380,7 @@ def get_gopax_luna_price():
         luna_base = "USDKRW"
         luna_midprice_krw = float(luna_price["midprice"])
     except:
+        METRIC_OUTBOUND_ERROR.labels('gopax').inc()
         logger.exception("Error in get_gopax_luna_price")
         err_flag = True
 
@@ -353,6 +393,7 @@ def get_gopax_luna_price():
 
 
 # get gdac luna krw price
+@time_request('gdac')
 def get_gdac_luna_price():
     err_flag = False
     try:
@@ -372,6 +413,7 @@ def get_gdac_luna_price():
         luna_base = "USDKRW"
         luna_midprice_krw = float(luna_price["midprice"])
     except:
+        METRIC_OUTBOUND_ERROR.labels('gdax').inc()
         logger.exception("Error in get_gdac_luna_price")
         err_flag = True
 
@@ -384,6 +426,7 @@ def get_gdac_luna_price():
 
 
 # get swap price
+@time_request('lcd')
 def get_swap_price():
     err_flag = False
     try:
@@ -391,6 +434,7 @@ def get_swap_price():
             "{}/oracle/denoms/exchange_rates".format(lcd_address),
             timeout=http_timeout).json()
     except:
+        METRIC_OUTBOUND_ERROR.labels('lcd').inc()
         logger.exception("Error in get_swap_price")
         result = []
         err_flag = True
@@ -553,6 +597,16 @@ while True:
             res_gopax = executor.submit(get_gopax_luna_price)
             res_gdac = executor.submit(get_gdac_luna_price)
 
+        def metrics_for_result(exchange, result):
+            if result:
+                METRIC_EXCHANGE_ASK_PRICE.labels(exchange, result['base_currency']).set(result['askprice'])
+                METRIC_EXCHANGE_BID_PRICE.labels(exchange, result['base_currency']).set(result['bidprice'])
+                METRIC_EXCHANGE_MID_PRICE.labels(exchange, result['base_currency']).set(result['midprice'])
+
+        metrics_for_result('coinone', res_coinone.result()[1])
+        metrics_for_result('gopax', res_gopax.result()[1])
+        metrics_for_result('res_gdac', res_gdac.result()[1])
+
         # Get active set of denoms
         swap_price_err_flag, swap_price = res_swap.result()
 
@@ -692,6 +746,8 @@ while True:
             for denom in active:
                 for prices in result["swap_price_compare"]:
                     if prices["market"] == denom:
+                        METRIC_MARKET_PRICE.labels(denom).set(prices["market_price"])
+                        METRIC_SWAP_PRICE.labels(denom).set(prices["swap_price"])
                         this_denom_err_flag = False
                         if abs(prices["market_price"] / prices[
                             "swap_price"] - 1.0) <= stop_oracle_trigger_recent_diverge:
@@ -748,6 +804,7 @@ while True:
             # broadcast vote/prevote at the same time!
             logger.info("Broadcast votes/prevotes at the same time...")
             broadcast_all(last_price, last_salt, this_hash)
+            METRIC_VOTES.inc()
         else:
             logger.info("Broadcast prevotes only...")
             broadcast_prevote(this_hash)
@@ -772,6 +829,9 @@ while True:
 
         # Get last amount of misses, if this increased message telegram
         currentmisses, currentheight = get_current_misses()
+
+        METRIC_HEIGHT.set(currentheight)
+        METRIC_MISSES.set(currentmisses)
 
         if currentheight > 0:
             misspercentage = round(float(currentmisses) / float(currentheight) * 100, 2)
