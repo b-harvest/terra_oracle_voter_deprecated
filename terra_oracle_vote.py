@@ -141,7 +141,7 @@ def telegram(message):
 
     try:
         requests.post(
-            "https://api.telegram.org/bot/{}/sendMessage".format(telegram_token),
+            "https://api.telegram.org/bot{}/sendMessage".format(telegram_token),
             json={
                 'chat_id': telegram_chat_id,
                 'text': message
