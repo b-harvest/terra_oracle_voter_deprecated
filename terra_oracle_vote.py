@@ -115,10 +115,10 @@ logger = logging.root
 
 # By default, python-requests does not use a timeout. We need to specify
 # a timeout on each call to ensure we never get stuck in network IO.
-http_timeout = 60
+http_timeout = 4
 
 # Separate timeout for alerting calls
-alert_http_timeout = 60
+alert_http_timeout = 4
 
 # Global requests session for HTTP/1.1 keepalive
 # (unfortunately, the timeout cannot be set globally)
@@ -141,7 +141,7 @@ def telegram(message):
 
     try:
         requests.post(
-            "https://api.telegram.org/bot/{}/sendMessage".format(telegram_token),
+            "https://api.telegram.org/bot{}/sendMessage".format(telegram_token),
             json={
                 'chat_id': telegram_chat_id,
                 'text': message
@@ -235,21 +235,23 @@ def get_latest_block():
 
 # get currency rate async def
 async def fx_for(symbol_to):
-    async with aiohttp.ClientSession() as async_session:
-        response = await async_session.get(
-        "https://www.alphavantage.co/query",
-        timeout=http_timeout,
-            params={
-            'function': 'CURRENCY_EXCHANGE_RATE',
-            'from_currency': 'USD',
-            'to_currency': symbol_to,
-            'apikey': alphavantage_key
-            }
-        )
-        api_result = await response.json()
-        return api_result
-
-
+    try:
+        async with aiohttp.ClientSession() as async_session:
+            async with  async_session.get(
+            "https://www.alphavantage.co/query",
+            timeout=http_timeout,
+                params={
+                'function': 'CURRENCY_EXCHANGE_RATE',
+                'from_currency': 'USD',
+                'to_currency': symbol_to,
+                'apikey': alphavantage_key
+                }
+            ) as response:
+                api_result = await response.json(content_type=None)
+            return api_result
+    except:
+            print("for_fx_error")
+            
 # get real fx rates
 @time_request('alphavantage')
 def get_fx_rate():
