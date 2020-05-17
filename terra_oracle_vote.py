@@ -439,7 +439,7 @@ def get_swap_price():
     except:
         METRIC_OUTBOUND_ERROR.labels('lcd').inc()
         logger.exception("Error in get_swap_price")
-        result = []
+        result = {"result":[]}
         err_flag = True
 
     return err_flag, result
@@ -556,7 +556,7 @@ while main_err_flag:
         if height > last_height:
             main_err_flag = False
             last_height = height
-    time.sleep(0.5)
+    time.sleep(1)
 
 last_prevoted_round = 0
 last_active = []
@@ -572,7 +572,7 @@ while True:
             if height > last_height:
                 main_err_flag = False
                 last_height = height
-        time.sleep(0.5)
+        time.sleep(1)
 
     current_round = int(float(height - 1) / round_block_num)
     next_height_round = int(float(height) / round_block_num)
@@ -788,20 +788,24 @@ while True:
         # check hash match
         my_current_prevotes = get_my_current_prevotes()
 
-        if not last_hash:
-            hash_match_flag = False
-        else:
-            hash_match_flag = True
+        try:
+            if not last_hash:
+                hash_match_flag = False
+            else:
+                hash_match_flag = True
 
-            for vote_hash in last_hash:
-                this_hash_exist = False
-                for prevote in my_current_prevotes:
-                    if str(prevote["hash"]) == vote_hash:
-                        this_hash_exist = True
+                for vote_hash in last_hash:
+                    this_hash_exist = False
+                    if my_current_prevotes != bool:
+                        for prevote in my_current_prevotes:
+                            if str(prevote["hash"]) == vote_hash:
+                                this_hash_exist = True
+                                break
+                    if not this_hash_exist:
+                        hash_match_flag = False
                         break
-                if not this_hash_exist:
-                    hash_match_flag = False
-                    break
+        except:
+            logging.exception("check hash match ERROR except")
 
         if hash_match_flag:  # if all hashes exist
             # broadcast vote/prevote at the same time!
