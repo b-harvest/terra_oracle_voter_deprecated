@@ -104,6 +104,14 @@ hardfix_active_set = [
     "umnt"
 ]
 
+# denoms for abstain votes. it will vote abstain for all denoms in this list.
+abstain_set = [
+    #"uusd",
+    #"ukrw",
+    #"usdr",
+    #"umnt"
+]
+
 chain_id = os.getenv("CHAIN_ID", "soju-0012")
 round_block_num = 5.0
 
@@ -782,6 +790,12 @@ while True:
                 this_price[denom] = str("{0:.18f}".format(float(-1)))
                 this_salt[denom] = get_salt(str(time.time()))
                 this_hash[denom] = get_hash(this_salt[denom], this_price[denom], denom, validator)
+        
+        # vote abstain(-1) for all denoms in abstain_set
+        for denom in abstain_set:
+            this_price[denom] = str("{0:.18f}".format(float(-1)))
+            this_salt[denom] = get_salt(str(time.time()))
+            this_hash[denom] = get_hash(this_salt[denom], this_price[denom], denom, validator)
 
         logger.info("Start voting on height " + str(height + 1))
 
