@@ -112,7 +112,7 @@ abstain_set = [
     #"umnt"
 ]
 
-chain_id = os.getenv("CHAIN_ID", "soju-0012")
+chain_id = os.getenv("CHAIN_ID", "tequila-0004"")
 round_block_num = 5.0
 
 # set last update time
@@ -230,8 +230,8 @@ def get_latest_block():
     err_flag = False
     try:
         result = session.get("{}/blocks/latest".format(lcd_address), timeout=http_timeout).json()
-        latest_block_height = int(result["block_meta"]["header"]["height"])
-        latest_block_time = result["block_meta"]["header"]["time"]
+        latest_block_height = int(result["block"]["header"]["height"])
+        latest_block_time = result["block"]["header"]["time"]
     except:
         METRIC_OUTBOUND_ERROR.labels('lcd').inc()
         logger.exception("Error in get_latest_block")
@@ -494,7 +494,7 @@ def broadcast_messages(messages):
         "--chain-id", chain_id,
         "--home", home_cli,
         "--node", node
-    ], input=key_password + b'\n').decode()
+    ], input=key_password + b'\n' + key_password + b'\n').decode()
 
     tx_json_signed = json.loads(cmd_output)
     json.dump(tx_json_signed, open("tx_oracle_prevote_signed.json", 'w'))
@@ -508,7 +508,7 @@ def broadcast_messages(messages):
         "--chain-id", chain_id,
         "--home", home_cli,
         "--node", node,
-    ], input=key_password + b'\n').decode()
+    ], input=key_password + b'\n' + key_password + b'\n').decode()
 
     return json.loads(cmd_output)
 
