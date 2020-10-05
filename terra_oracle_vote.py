@@ -33,6 +33,8 @@ telegram_token = os.getenv("TELEGRAM_TOKEN", "")
 telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
 # https://www.alphavantage.co/
 alphavantage_key = os.getenv("ALPHAVANTAGE_KEY", "")
+# no using alphavantage
+use_free_api = os.getenv("USE_FREE_API", "true") == "true"
 # stop oracle when price change exceeds stop_oracle_trigger
 stop_oracle_trigger_recent_diverge = float(os.getenv("STOP_ORACLE_RECENT_DIVERGENCE", "999999999999"))
 # stop oracle when price change exceeds stop_oracle_trigger
@@ -64,7 +66,7 @@ gopax_share_default = float(os.getenv("GOPAX_SHARE_DEFAULT", "0"))
 # default gdac weight
 gdac_share_default = float(os.getenv("GDAC_SHARE_DEFAULT", "0"))
 price_divergence_alert = os.getenv("PRICE_ALERTS", "false") == "true"
-vwma_period = int(os.getenv("VWMA_PERIOD", str(3 * 60)))  # in seconds
+vwma_period = int(os.getenv("VWMA_PERIOD", str(3 * 600)))  # in seconds
 misses = int(os.getenv("MISSES", "0"))
 alertmisses = os.getenv("MISS_ALERTS", "true") == "true"
 debug = os.getenv("DEBUG", "false") == "true"
@@ -262,6 +264,23 @@ async def fx_for(symbol_to):
     except:
             print("for_fx_error")
             
+# get currency rate async def
+async def fx_for_free(symbol_to):
+    try:
+        async with aiohttp.ClientSession() as async_session:
+            async with  async_session.get(
+            "https://api.exchangerate.host/latest",
+            timeout=http_timeout,
+                params={
+                'base': 'USD',
+                'symbols': symbol_to
+                }
+            ) as response:
+                api_result = await response.json(content_type=None)
+            return api_result
+    except:
+            print("for_fx_error")
+
 # get real fx rates
 @time_request('alphavantage')
 def get_fx_rate():
@@ -277,7 +296,7 @@ def get_fx_rate():
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        futures = [fx_for(symbol_lists) for symbol_lists in symbol_list]
+        futures = [fx_for_free(symbol_lists) for symbol_lists in symbol_list]
         api_result = loop.run_until_complete(asyncio.gather(*futures))
 
         result_real_fx = {
@@ -323,6 +342,51 @@ def get_sdr_rate():
         result_sdr_rate = None
     return err_flag, result_sdr_rate
 '''
+
+
+# get real fx rates
+@time_request('exchangerateapi')
+def get_fx_rate_free():
+    err_flag = False
+    try:
+        # get currency rate
+        symbol_list = ["KRW",
+                "EUR",
+                "CNY",
+                "JPY",
+                "XDR",
+                "MNT"]
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        futures = [fx_for_free(symbol_lists) for symbol_lists in symbol_list]
+        api_result = loop.run_until_complete(asyncio.gather(*futures))
+
+        result_real_fx = {
+            "USDUSD": 1.0,
+            "USDKRW": 1.0,
+            "USDEUR": 1.0,
+            "USDCNY": 1.0,
+            "USDJPY": 1.0,
+            "USDSDR": 1.0,
+            "USDMNT": 1.0
+        }
+
+        list_number = 0
+        for symbol in symbol_list:
+            fx_symbol="USD"+symbol
+            if symbol == "XDR":
+                fx_symbol = "USDSDR"
+            result_real_fx[fx_symbol] = float(
+                api_result[list_number]["rates"][symbol])
+            list_number = list_number +1 
+    except:
+        METRIC_OUTBOUND_ERROR.labels('exchangerateapi').inc()
+        logger.exception("Error in get_fx_rate_free")
+        err_flag = True
+        result_real_fx = None
+
+    return err_flag, result_real_fx
 
 # get coinone luna krw price
 @time_request('coinone')
@@ -635,7 +699,11 @@ while True:
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
             res_swap = executor.submit(get_swap_price)
-            res_fx = executor.submit(get_fx_rate)
+            res_fx = {}
+            if use_free_api:
+                res_fx = executor.submit(get_fx_rate_free)
+            else:
+                res_fx = executor.submit(get_fx_rate)
             #res_sdr = executor.submit(get_sdr_rate) sdr receive Option
             res_coinone = executor.submit(get_coinone_luna_price)
             res_bithumb = executor.submit(get_bithumb_luna_price)
