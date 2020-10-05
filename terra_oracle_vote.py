@@ -57,6 +57,8 @@ terracli = os.getenv("TERRACLI_BIN", "sudo /home/ubuntu/go/bin/terracli")
 lcd_address = os.getenv("TERRA_LCD", "https://lcd.terra.dev/")
 # default coinone weight
 coinone_share_default = float(os.getenv("COINONE_SHARE_DEFAULT", "1.0"))
+# default bithumb weight
+bithumb_share_default = float(os.getenv("BITHUMB_SHARE_DEFAULT", "0"))
 # default gopax weight
 gopax_share_default = float(os.getenv("GOPAX_SHARE_DEFAULT", "0"))
 # default gdac weight
@@ -370,6 +372,37 @@ def get_coinone_luna_price():
     return err_flag, luna_price, luna_base, luna_midprice_krw
 
 
+# get bithumb luna krw price
+@time_request('bithumb')
+def get_bithumb_luna_price():
+    err_flag = False
+    try:
+        # get luna/krw
+        url = "https://api.bithumb.com/public/orderbook/luna_krw"
+        luna_result = session.get(url, timeout=http_timeout).json()["data"]
+        askprice = float(luna_result["asks"][0]["price"])
+        bidprice = float(luna_result["bids"][0]["price"])
+        midprice = (askprice + bidprice) / 2.0
+        luna_price = {
+            "base_currency": "ukrw",
+            "exchange": "bithumb",
+            "askprice": askprice,
+            "bidprice": bidprice,
+            "midprice": midprice
+        }
+        luna_base = "USDKRW"
+        luna_midprice_krw = float(luna_price["midprice"])
+    except:
+        METRIC_OUTBOUND_ERROR.labels('bithumb').inc()
+        logger.exception("Error in get_bithumb_luna_price")
+        err_flag = True
+        luna_price = None
+        luna_base = None
+        luna_midprice_krw = None
+
+    return err_flag, luna_price, luna_base, luna_midprice_krw
+
+
 # get gopax luna krw price
 @time_request('gopax')
 def get_gopax_luna_price():
@@ -605,6 +638,7 @@ while True:
             res_fx = executor.submit(get_fx_rate)
             #res_sdr = executor.submit(get_sdr_rate) sdr receive Option
             res_coinone = executor.submit(get_coinone_luna_price)
+            res_bithumb = executor.submit(get_bithumb_luna_price)
             res_gopax = executor.submit(get_gopax_luna_price)
             res_gdac = executor.submit(get_gdac_luna_price)
 
@@ -615,6 +649,7 @@ while True:
                 METRIC_EXCHANGE_MID_PRICE.labels(exchange, result['base_currency']).set(result['midprice'])
 
         metrics_for_result('coinone', res_coinone.result()[1])
+        metrics_for_result('bithumb', res_bithumb.result()[1])
         metrics_for_result('gopax', res_gopax.result()[1])
         metrics_for_result('res_gdac', res_gdac.result()[1])
 
@@ -636,10 +671,12 @@ while True:
         fx_err_flag, real_fx = res_fx.result()
         #sdr_err_flag, sdr_rate = res_sdr.result() sdr receive Option
         coinone_err_flag, coinone_luna_price, coinone_luna_base, coinone_luna_midprice_krw = res_coinone.result()
+        bithumb_err_flag, bithumb_luna_price, bithumb_luna_base, bithumb_luna_midprice_krw = res_bithumb.result()
         gopax_err_flag, gopax_luna_price, gopax_luna_base, gopax_luna_midprice_krw = res_gopax.result()
         gdac_err_flag, gdac_luna_price, gdac_luna_base, gdac_luna_midprice_krw = res_gdac.result()
 
         coinone_share = coinone_share_default
+        bithumb_share = bithumb_share_default
         gopax_share = gopax_share_default
         gdac_share = gdac_share_default
 
@@ -649,6 +686,8 @@ while True:
         '''
         if fx_err_flag or coinone_err_flag or swap_price_err_flag:
             all_err_flag = True
+        if bithumb_err_flag:
+            bithumb_share = 0
         if gopax_err_flag:
             gopax_share = 0
         if gdac_err_flag:
@@ -656,6 +695,25 @@ while True:
 
         if not all_err_flag:
             #real_fx["USDSDR"] = float(sdr_rate) sdr receive Option
+
+            # ignore bithumb if it diverge from coinone price or its bid-ask price is wider than bid_ask_spread_max
+            if bithumb_share > 0:
+                if abs(1.0 - float(bithumb_luna_midprice_krw) / float(
+                        coinone_luna_midprice_krw)) > stop_oracle_trigger_exchange_diverge or float(
+                    bithumb_luna_price["askprice"]) / float(
+                    bithumb_luna_price["bidprice"]) - 1 > bid_ask_spread_max:
+                    bithumb_share = 0
+                    if price_divergence_alert:
+                        alarm_content = denom + " market price diversion at height " + str(
+                            height) + "! coinone_price:" + str(
+                            "{0:.1f}".format(coinone_luna_midprice_krw)) + ", bithumb_price:" + str(
+                            "{0:.1f}".format(bithumb_luna_midprice_krw))
+                        alarm_content += "(percent_diff:" + str("{0:.4f}".format(
+                            (coinone_luna_midprice_krw / bithumb_luna_midprice_krw - 1.0) * 100.0)) + "%)"
+
+                        logger.error(alarm_content)
+                        telegram(alarm_content)
+                        slack(alarm_content)
 
             # ignore gopax if it diverge from coinone price or its bid-ask price is wider than bid_ask_spread_max
             if gopax_share > 0:
@@ -704,9 +762,10 @@ while True:
             # Weighted average
             luna_midprice_krw = (
                     (float(coinone_luna_midprice_krw) * coinone_share +
+                     float(bithumb_luna_midprice_krw) * bithumb_share +
                      float(gopax_luna_midprice_krw) * gopax_share +
                      float(gdac_luna_midprice_krw) * gdac_share
-                     ) / (coinone_share + gopax_share + gdac_share)
+                     ) / (coinone_share + bithumb_share + gopax_share + gdac_share)
             )
 
             luna_base = coinone_luna_base
@@ -735,7 +794,7 @@ while True:
                     "block_time": latest_block_time,
                     "swap_price_compare": swap_price_compare,
                     "real_fx": real_fx,
-                    "luna_price_list": [coinone_luna_price, gopax_luna_price]
+                    "luna_price_list": [coinone_luna_price, bithumb_luna_price, gopax_luna_price]
                 }
             except:
                 # TODO: how can this fail?

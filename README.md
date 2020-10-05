@@ -43,6 +43,7 @@ node = "tcp://52.78.69.160:26657" # node to broadcast the txs\
 terracli = "sudo /home/ubuntu/go/bin/terracli" # path to terracli binary\
 rpc_address = "https://soju-lcd.terra.dev/" # rpc to receive swap price information\
 coinone_share_default = 1 # default coinone weight for averaging oracle price\
+bithumb_share_default = 0 # default bithumb weight for averaging oracle price\
 gopax_share_default = 0 # default gopax weight for averaging oracle price\
 gdac_share_default = 0 # default gdac weight for averaging oracle price\
 price_divergence_alert = False # alert when exchange prices diverge\
