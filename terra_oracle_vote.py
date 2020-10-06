@@ -116,7 +116,7 @@ abstain_set = [
     #"umnt"
 ]
 
-chain_id = os.getenv("CHAIN_ID", "columbus-4")
+chain_id = os.getenv("CHAIN_ID", "tequila-0004")
 round_block_num = 5.0
 
 # set last update time
