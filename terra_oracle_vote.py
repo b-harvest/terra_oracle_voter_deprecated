@@ -34,7 +34,7 @@ telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
 # https://www.alphavantage.co/
 alphavantage_key = os.getenv("ALPHAVANTAGE_KEY", "")
 # no using alphavantage
-use_free_api = os.getenv("USE_FREE_API", "true") == "true"
+use_free_api = os.getenv("USE_FREE_API", "") == "true"
 # stop oracle when price change exceeds stop_oracle_trigger
 stop_oracle_trigger_recent_diverge = float(os.getenv("STOP_ORACLE_RECENT_DIVERGENCE", "999999999999"))
 # stop oracle when price change exceeds stop_oracle_trigger
@@ -116,7 +116,7 @@ abstain_set = [
     #"umnt"
 ]
 
-chain_id = os.getenv("CHAIN_ID", "columbus-4")
+chain_id = os.getenv("CHAIN_ID", "tequila-0004")
 round_block_num = 5.0
 
 # set last update time
@@ -296,7 +296,7 @@ def get_fx_rate():
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        futures = [fx_for_free(symbol_lists) for symbol_lists in symbol_list]
+        futures = [fx_for(symbol_lists) for symbol_lists in symbol_list]
         api_result = loop.run_until_complete(asyncio.gather(*futures))
 
         result_real_fx = {
