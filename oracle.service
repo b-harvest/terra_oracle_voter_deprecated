@@ -13,6 +13,7 @@ RestartSec=3
 # Required configuration values
 Environment=FCSAPI_KEY=
 Environment=ALPHAVANTAGE_KEY=
+Environment=USE_FREE_API=
 Environment=FEEDER_ADDRESS=
 Environment=VALIDATOR_ADDRESS=
 Environment=KEY_NAME=
@@ -21,13 +22,13 @@ Environment=HOME_CLI=/path/to/.terracli
 Environment=NODE_RPC=tcp://127.0.0.1:26657
 Environment=TERRACLI_BIN=/path/to/terracli
 Environment=TERRA_LCD=https://lcd.terra.dev/
-Environment=CHAIN_ID=columbus-3
+Environment=CHAIN_ID=columbus-4
 Environment=MISS_ALERTS=false
 Environment=STOP_ORACLE_RECENT_DIVERGENCE=999999999999
 Environment=STOP_ORACLE_EXCHANGE_DIVERGENCE=0.1
 Environment=BID_ASK_SPREAD_MAX=0.05
-Environment=FEE_GAS=200000
-Environment=FEE_AMOUNT=4000
+Environment=FEE_GAS=170000
+Environment=FEE_AMOUNT=356200
 Environment=VWMA_PERIOD=0
 
 
