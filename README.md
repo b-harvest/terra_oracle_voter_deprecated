@@ -36,17 +36,18 @@ validator = "" # validator address\
 key_name = "" # oracle feeder key name\
 key_password = "" # oracle feeder key password\
 fee_denom = "ukrw" # fee denom\
-fee_gas = "150000" # fee gas\
-fee_amount = "1500" # fee amount in ukrw\
+fee_gas = "170000" # fee gas\
+fee_amount = "356200" # fee amount in ukrw\
 home_cli = "/home/ubuntu/.terracli" # terracli home directory\
 node = "tcp://52.78.69.160:26657" # node to broadcast the txs\
 terracli = "sudo /home/ubuntu/go/bin/terracli" # path to terracli binary\
 rpc_address = "https://soju-lcd.terra.dev/" # rpc to receive swap price information\
 coinone_share_default = 1 # default coinone weight for averaging oracle price\
+bithumb_share_default = 0 # default bithumb weight for averaging oracle price\
 gopax_share_default = 0 # default gopax weight for averaging oracle price\
 gdac_share_default = 0 # default gdac weight for averaging oracle price\
 price_divergence_alert = False # alert when exchange prices diverge\
-vwma_period = 3*60 # period for volume weight moving average of coinone price in seconds
+vwma_period = 3*600 # period for volume weight moving average of coinone price in seconds
 
 ### parameters
 fx_map = {"uusd":"USDUSD","ukrw":"USDKRW","usdr":"USDSDR","umnt":"USDMNT"}\

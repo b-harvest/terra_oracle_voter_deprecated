@@ -33,6 +33,8 @@ telegram_token = os.getenv("TELEGRAM_TOKEN", "")
 telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
 # https://www.alphavantage.co/
 alphavantage_key = os.getenv("ALPHAVANTAGE_KEY", "")
+# no using alphavantage
+use_free_api = os.getenv("USE_FREE_API", "") == "true"
 # stop oracle when price change exceeds stop_oracle_trigger
 stop_oracle_trigger_recent_diverge = float(os.getenv("STOP_ORACLE_RECENT_DIVERGENCE", "999999999999"))
 # stop oracle when price change exceeds stop_oracle_trigger
@@ -57,12 +59,14 @@ terracli = os.getenv("TERRACLI_BIN", "sudo /home/ubuntu/go/bin/terracli")
 lcd_address = os.getenv("TERRA_LCD", "https://lcd.terra.dev/")
 # default coinone weight
 coinone_share_default = float(os.getenv("COINONE_SHARE_DEFAULT", "1.0"))
+# default bithumb weight
+bithumb_share_default = float(os.getenv("BITHUMB_SHARE_DEFAULT", "0"))
 # default gopax weight
 gopax_share_default = float(os.getenv("GOPAX_SHARE_DEFAULT", "0"))
 # default gdac weight
 gdac_share_default = float(os.getenv("GDAC_SHARE_DEFAULT", "0"))
 price_divergence_alert = os.getenv("PRICE_ALERTS", "false") == "true"
-vwma_period = int(os.getenv("VWMA_PERIOD", str(3 * 60)))  # in seconds
+vwma_period = int(os.getenv("VWMA_PERIOD", str(3 * 600)))  # in seconds
 misses = int(os.getenv("MISSES", "0"))
 alertmisses = os.getenv("MISS_ALERTS", "true") == "true"
 debug = os.getenv("DEBUG", "false") == "true"
@@ -112,7 +116,7 @@ abstain_set = [
     #"umnt"
 ]
 
-chain_id = os.getenv("CHAIN_ID", "tequila-0004"")
+chain_id = os.getenv("CHAIN_ID", "tequila-0004")
 round_block_num = 5.0
 
 # set last update time
@@ -260,6 +264,23 @@ async def fx_for(symbol_to):
     except:
             print("for_fx_error")
             
+# get currency rate async def
+async def fx_for_free(symbol_to):
+    try:
+        async with aiohttp.ClientSession() as async_session:
+            async with  async_session.get(
+            "https://api.exchangerate.host/latest",
+            timeout=http_timeout,
+                params={
+                'base': 'USD',
+                'symbols': symbol_to
+                }
+            ) as response:
+                api_result = await response.json(content_type=None)
+            return api_result
+    except:
+            print("for_fx_error")
+
 # get real fx rates
 @time_request('alphavantage')
 def get_fx_rate():
@@ -322,6 +343,51 @@ def get_sdr_rate():
     return err_flag, result_sdr_rate
 '''
 
+
+# get real fx rates
+@time_request('exchangerateapi')
+def get_fx_rate_free():
+    err_flag = False
+    try:
+        # get currency rate
+        symbol_list = ["KRW",
+                "EUR",
+                "CNY",
+                "JPY",
+                "XDR",
+                "MNT"]
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        futures = [fx_for_free(symbol_lists) for symbol_lists in symbol_list]
+        api_result = loop.run_until_complete(asyncio.gather(*futures))
+
+        result_real_fx = {
+            "USDUSD": 1.0,
+            "USDKRW": 1.0,
+            "USDEUR": 1.0,
+            "USDCNY": 1.0,
+            "USDJPY": 1.0,
+            "USDSDR": 1.0,
+            "USDMNT": 1.0
+        }
+
+        list_number = 0
+        for symbol in symbol_list:
+            fx_symbol="USD"+symbol
+            if symbol == "XDR":
+                fx_symbol = "USDSDR"
+            result_real_fx[fx_symbol] = float(
+                api_result[list_number]["rates"][symbol])
+            list_number = list_number +1 
+    except:
+        METRIC_OUTBOUND_ERROR.labels('exchangerateapi').inc()
+        logger.exception("Error in get_fx_rate_free")
+        err_flag = True
+        result_real_fx = None
+
+    return err_flag, result_real_fx
+
 # get coinone luna krw price
 @time_request('coinone')
 def get_coinone_luna_price():
@@ -362,6 +428,37 @@ def get_coinone_luna_price():
     except:
         METRIC_OUTBOUND_ERROR.labels('coinone').inc()
         logger.exception("Error in get_coinone_luna_price")
+        err_flag = True
+        luna_price = None
+        luna_base = None
+        luna_midprice_krw = None
+
+    return err_flag, luna_price, luna_base, luna_midprice_krw
+
+
+# get bithumb luna krw price
+@time_request('bithumb')
+def get_bithumb_luna_price():
+    err_flag = False
+    try:
+        # get luna/krw
+        url = "https://api.bithumb.com/public/orderbook/luna_krw"
+        luna_result = session.get(url, timeout=http_timeout).json()["data"]
+        askprice = float(luna_result["asks"][0]["price"])
+        bidprice = float(luna_result["bids"][0]["price"])
+        midprice = (askprice + bidprice) / 2.0
+        luna_price = {
+            "base_currency": "ukrw",
+            "exchange": "bithumb",
+            "askprice": askprice,
+            "bidprice": bidprice,
+            "midprice": midprice
+        }
+        luna_base = "USDKRW"
+        luna_midprice_krw = float(luna_price["midprice"])
+    except:
+        METRIC_OUTBOUND_ERROR.labels('bithumb').inc()
+        logger.exception("Error in get_bithumb_luna_price")
         err_flag = True
         luna_price = None
         luna_base = None
@@ -602,9 +699,14 @@ while True:
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
             res_swap = executor.submit(get_swap_price)
-            res_fx = executor.submit(get_fx_rate)
+            res_fx = {}
+            if use_free_api:
+                res_fx = executor.submit(get_fx_rate_free)
+            else:
+                res_fx = executor.submit(get_fx_rate)
             #res_sdr = executor.submit(get_sdr_rate) sdr receive Option
             res_coinone = executor.submit(get_coinone_luna_price)
+            res_bithumb = executor.submit(get_bithumb_luna_price)
             res_gopax = executor.submit(get_gopax_luna_price)
             res_gdac = executor.submit(get_gdac_luna_price)
 
@@ -615,6 +717,7 @@ while True:
                 METRIC_EXCHANGE_MID_PRICE.labels(exchange, result['base_currency']).set(result['midprice'])
 
         metrics_for_result('coinone', res_coinone.result()[1])
+        metrics_for_result('bithumb', res_bithumb.result()[1])
         metrics_for_result('gopax', res_gopax.result()[1])
         metrics_for_result('res_gdac', res_gdac.result()[1])
 
@@ -636,10 +739,12 @@ while True:
         fx_err_flag, real_fx = res_fx.result()
         #sdr_err_flag, sdr_rate = res_sdr.result() sdr receive Option
         coinone_err_flag, coinone_luna_price, coinone_luna_base, coinone_luna_midprice_krw = res_coinone.result()
+        bithumb_err_flag, bithumb_luna_price, bithumb_luna_base, bithumb_luna_midprice_krw = res_bithumb.result()
         gopax_err_flag, gopax_luna_price, gopax_luna_base, gopax_luna_midprice_krw = res_gopax.result()
         gdac_err_flag, gdac_luna_price, gdac_luna_base, gdac_luna_midprice_krw = res_gdac.result()
 
         coinone_share = coinone_share_default
+        bithumb_share = bithumb_share_default
         gopax_share = gopax_share_default
         gdac_share = gdac_share_default
 
@@ -649,6 +754,8 @@ while True:
         '''
         if fx_err_flag or coinone_err_flag or swap_price_err_flag:
             all_err_flag = True
+        if bithumb_err_flag:
+            bithumb_share = 0
         if gopax_err_flag:
             gopax_share = 0
         if gdac_err_flag:
@@ -656,6 +763,25 @@ while True:
 
         if not all_err_flag:
             #real_fx["USDSDR"] = float(sdr_rate) sdr receive Option
+
+            # ignore bithumb if it diverge from coinone price or its bid-ask price is wider than bid_ask_spread_max
+            if bithumb_share > 0:
+                if abs(1.0 - float(bithumb_luna_midprice_krw) / float(
+                        coinone_luna_midprice_krw)) > stop_oracle_trigger_exchange_diverge or float(
+                    bithumb_luna_price["askprice"]) / float(
+                    bithumb_luna_price["bidprice"]) - 1 > bid_ask_spread_max:
+                    bithumb_share = 0
+                    if price_divergence_alert:
+                        alarm_content = denom + " market price diversion at height " + str(
+                            height) + "! coinone_price:" + str(
+                            "{0:.1f}".format(coinone_luna_midprice_krw)) + ", bithumb_price:" + str(
+                            "{0:.1f}".format(bithumb_luna_midprice_krw))
+                        alarm_content += "(percent_diff:" + str("{0:.4f}".format(
+                            (coinone_luna_midprice_krw / bithumb_luna_midprice_krw - 1.0) * 100.0)) + "%)"
+
+                        logger.error(alarm_content)
+                        telegram(alarm_content)
+                        slack(alarm_content)
 
             # ignore gopax if it diverge from coinone price or its bid-ask price is wider than bid_ask_spread_max
             if gopax_share > 0:
@@ -704,9 +830,10 @@ while True:
             # Weighted average
             luna_midprice_krw = (
                     (float(coinone_luna_midprice_krw) * coinone_share +
+                     float(bithumb_luna_midprice_krw) * bithumb_share +
                      float(gopax_luna_midprice_krw) * gopax_share +
                      float(gdac_luna_midprice_krw) * gdac_share
-                     ) / (coinone_share + gopax_share + gdac_share)
+                     ) / (coinone_share + bithumb_share + gopax_share + gdac_share)
             )
 
             luna_base = coinone_luna_base
@@ -735,7 +862,7 @@ while True:
                     "block_time": latest_block_time,
                     "swap_price_compare": swap_price_compare,
                     "real_fx": real_fx,
-                    "luna_price_list": [coinone_luna_price, gopax_luna_price]
+                    "luna_price_list": [coinone_luna_price, bithumb_luna_price, gopax_luna_price]
                 }
             except:
                 # TODO: how can this fail?
