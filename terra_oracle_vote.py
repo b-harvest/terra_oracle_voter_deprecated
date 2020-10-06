@@ -71,6 +71,7 @@ misses = int(os.getenv("MISSES", "0"))
 alertmisses = os.getenv("MISS_ALERTS", "true") == "true"
 debug = os.getenv("DEBUG", "false") == "true"
 metrics_port = os.getenv("METRICS_PORT", "19000")
+band_endpoint = os.getenv("BAND_ENDPOINT", "https://poa-api.bandchain.org")
 
 METRIC_MISSES = Gauge("terra_oracle_misses_total", "Total number of oracle misses")
 METRIC_HEIGHT = Gauge("terra_oracle_height", "Block height of the LCD node")
@@ -321,6 +322,29 @@ def get_fx_rate():
         logger.exception("Error in get_fx_rate")
         err_flag = True
         result_real_fx = None
+
+    return err_flag, result_real_fx
+
+@time_request('band-fx')
+def get_fx_rate_from_band():
+    err_flag = False
+    result_real_fx = None
+    try:
+        result_real_fx = {"USDUSD": 1.0}
+        symbol_list = ["KRW","EUR","CNY","JPY","XDR","MNT"]
+        prices = requests.post(
+            f"{band_endpoint}/oracle/request_prices",
+            json={"symbols":symbol_list,"min_count":3,"ask_count":4}
+        ).json()['result']
+
+        for (symbol, price) in zip(symbol_list,prices):
+            if symbol == "XDR":
+                symbol = "SDR"
+            result_real_fx["USD"+symbol] = int(price['multiplier'],10) / int(price['px'],10)
+    except:
+        METRIC_OUTBOUND_ERROR.labels('band-fx').inc()
+        logger.exception("Error in def get_fx_rate_from_band")
+        err_flag = True
 
     return err_flag, result_real_fx
 
@@ -704,6 +728,7 @@ while True:
                 res_fx = executor.submit(get_fx_rate_free)
             else:
                 res_fx = executor.submit(get_fx_rate)
+            res_fx_band = executor.submit(get_fx_rate_from_band)
             #res_sdr = executor.submit(get_sdr_rate) sdr receive Option
             res_coinone = executor.submit(get_coinone_luna_price)
             res_bithumb = executor.submit(get_bithumb_luna_price)
@@ -737,6 +762,16 @@ while True:
         logger.info("Active set: {}".format(active))
 
         fx_err_flag, real_fx = res_fx.result()
+        fx_band_err_flag, fx_band = res_fx_band.result()
+
+        if not fx_err_flag and not fx_band_err_flag:
+            for key in real_fx:
+                real_fx[key] = (real_fx[key] + fx_band[key])/2.0
+        elif not fx_band_err_flag:
+            real_fx = fx_band
+
+        fx_err_flag = fx_err_flag and fx_band_err_flag
+
         #sdr_err_flag, sdr_rate = res_sdr.result() sdr receive Option
         coinone_err_flag, coinone_luna_price, coinone_luna_base, coinone_luna_midprice_krw = res_coinone.result()
         bithumb_err_flag, bithumb_luna_price, bithumb_luna_base, bithumb_luna_midprice_krw = res_bithumb.result()
