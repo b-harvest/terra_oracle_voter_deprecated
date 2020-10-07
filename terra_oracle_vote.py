@@ -908,19 +908,19 @@ while True:
                         if this_denom_err_flag == False:  # vote negative when this_denom_err_flag == True
                             this_price[denom] = str("{0:.18f}".format(float(prices["market_price"])))
                         else:
-                            this_price[denom] = str("{0:.18f}".format(float(-1)))
+                            this_price[denom] = str("{0:.18f}".format(float(0)))
                         this_hash[denom] = get_hash(this_salt[denom], this_price[denom], denom, validator)
                         break
 
         if all_err_flag:  # vote negative when all_err_flag == True
             for denom in active:
-                this_price[denom] = str("{0:.18f}".format(float(-1)))
+                this_price[denom] = str("{0:.18f}".format(float(0)))
                 this_salt[denom] = get_salt(str(time.time()))
                 this_hash[denom] = get_hash(this_salt[denom], this_price[denom], denom, validator)
         
-        # vote abstain(-1) for all denoms in abstain_set
+        # vote abstain(0) for all denoms in abstain_set
         for denom in abstain_set:
-            this_price[denom] = str("{0:.18f}".format(float(-1)))
+            this_price[denom] = str("{0:.18f}".format(float(0)))
             this_salt[denom] = get_salt(str(time.time()))
             this_hash[denom] = get_hash(this_salt[denom], this_price[denom], denom, validator)
 
