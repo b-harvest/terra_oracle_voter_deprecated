@@ -5,7 +5,7 @@ Oracle autovoting script for Terra(v0.3.0+) oracle by B-Harvest
 The script is in highly experimental state, and users should aware that all result from the terra_oracle_voter script is responsible to the user himself/herself.
 
 ## Language
-Python3
+Python3.8 Recommended
 
 ## Preliminary
 The server running this script should run terrad with synced status.
