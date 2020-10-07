@@ -24,6 +24,7 @@ import asyncio
 import requests
 from prometheus_client import start_http_server, Summary, Counter, Gauge, Histogram
 import aiohttp
+import statistics
 from pyband.obi import PyObi
 from pyband.client import Client
 
@@ -36,7 +37,7 @@ telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
 # https://www.alphavantage.co/
 alphavantage_key = os.getenv("ALPHAVANTAGE_KEY", "")
 # no using alphavantage
-use_free_api = os.getenv("USE_FREE_API", "") == "true"
+fx_api_option = os.getenv("FX_API_OPTION", "alphavantage,free_api,band")
 # stop oracle when price change exceeds stop_oracle_trigger
 stop_oracle_trigger_recent_diverge = float(os.getenv("STOP_ORACLE_RECENT_DIVERGENCE", "999999999999"))
 # stop oracle when price change exceeds stop_oracle_trigger
@@ -415,6 +416,34 @@ def get_fx_rate_free():
 
     return err_flag, result_real_fx
 
+
+# combine all fx rate from sources
+def combine_fx(res_fxs):
+    fx_combined = {
+        "USDUSD":[],
+        "USDKRW":[],
+        "USDEUR":[],
+        "USDCNY":[],
+        "USDJPY":[],
+        "USDSDR":[],
+        "USDMNT":[]
+    }
+    all_fx_err_flag = True
+    for res_fx in res_fxs:
+        err_flag, fx = res_fx.result()
+        all_fx_err_flag = all_fx_err_flag and err_flag
+        if not err_flag:
+            for key in fx_combined:
+                if key in fx:
+                    fx_combined[key].append(fx[key])
+    for key in fx_combined:
+        if len(fx_combined[key]) > 0:
+            fx_combined[key] = statistics.median(fx_combined[key])
+        else:
+            fx_combined[key] = None
+            all_fx_err_flag = True
+    return all_fx_err_flag, fx_combined
+
 # get coinone luna krw price
 @time_request('coinone')
 def get_coinone_luna_price():
@@ -770,14 +799,17 @@ while True:
         all_err_flag = False
         ts = time.time()
 
+        fx_api_collection = {
+            "alphavantage": get_fx_rate,
+            "free_api": get_fx_rate_free,
+            "band": get_fx_rate_from_band
+        }
+
         with concurrent.futures.ThreadPoolExecutor() as executor:
             res_swap = executor.submit(get_swap_price)
-            res_fx = {}
-            if use_free_api:
-                res_fx = executor.submit(get_fx_rate_free)
-            else:
-                res_fx = executor.submit(get_fx_rate)
-            res_fx_band = executor.submit(get_fx_rate_from_band)
+            res_fxs = []
+            for fx_key in fx_api_option.split(","):
+                res_fxs.append( executor.submit(fx_api_collection[fx_key]))
             #res_sdr = executor.submit(get_sdr_rate) sdr receive Option
             res_coinone = executor.submit(get_coinone_luna_price)
             res_bithumb = executor.submit(get_bithumb_luna_price)
@@ -815,16 +847,8 @@ while True:
 
         logger.info("Active set: {}".format(active))
 
-        fx_err_flag, real_fx = res_fx.result()
-        fx_band_err_flag, fx_band = res_fx_band.result()
-
-        if not fx_err_flag and not fx_band_err_flag:
-            for key in real_fx:
-                real_fx[key] = (real_fx[key] + fx_band[key])/2.0
-        elif not fx_band_err_flag:
-            real_fx = fx_band
-
-        fx_err_flag = fx_err_flag and fx_band_err_flag
+        # combine fx from all sources
+        fx_err_flag, real_fx = combine_fx(res_fxs)
 
         #sdr_err_flag, sdr_rate = res_sdr.result() sdr receive Option
         coinone_err_flag, coinone_luna_price, coinone_luna_base, coinone_luna_midprice_krw = res_coinone.result()
@@ -844,7 +868,9 @@ while True:
         if fx_err_flag or sdr_err_flag or coinone_err_flag or swap_price_err_flag:
             all_err_flag = True
         '''
-        if fx_err_flag or coinone_err_flag or swap_price_err_flag:
+        if fx_err_flag:
+            all_err_flag = True
+        if coinone_err_flag or swap_price_err_flag:
             if coinone_backup is None:
                 all_err_flag = True
             else:
