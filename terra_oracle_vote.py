@@ -24,6 +24,9 @@ import asyncio
 import requests
 from prometheus_client import start_http_server, Summary, Counter, Gauge, Histogram
 import aiohttp
+import statistics
+from pyband.obi import PyObi
+from pyband.client import Client
 
 # User setup
 
@@ -34,7 +37,7 @@ telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
 # https://www.alphavantage.co/
 alphavantage_key = os.getenv("ALPHAVANTAGE_KEY", "")
 # no using alphavantage
-use_free_api = os.getenv("USE_FREE_API", "") == "true"
+fx_api_option = os.getenv("FX_API_OPTION", "alphavantage,free_api,band")
 # stop oracle when price change exceeds stop_oracle_trigger
 stop_oracle_trigger_recent_diverge = float(os.getenv("STOP_ORACLE_RECENT_DIVERGENCE", "999999999999"))
 # stop oracle when price change exceeds stop_oracle_trigger
@@ -71,6 +74,8 @@ misses = int(os.getenv("MISSES", "0"))
 alertmisses = os.getenv("MISS_ALERTS", "true") == "true"
 debug = os.getenv("DEBUG", "false") == "true"
 metrics_port = os.getenv("METRICS_PORT", "19000")
+band_endpoint = os.getenv("BAND_ENDPOINT", "https://poa-api.bandchain.org")
+band_luna_price_params = os.getenv("BAND_LUNA_PRICE_PARAMS", "19,1_000_000,3,4")
 
 METRIC_MISSES = Gauge("terra_oracle_misses_total", "Total number of oracle misses")
 METRIC_HEIGHT = Gauge("terra_oracle_height", "Block height of the LCD node")
@@ -324,6 +329,29 @@ def get_fx_rate():
 
     return err_flag, result_real_fx
 
+@time_request('band-fx')
+def get_fx_rate_from_band():
+    err_flag = False
+    result_real_fx = None
+    try:
+        result_real_fx = {"USDUSD": 1.0}
+        symbol_list = ["KRW","EUR","CNY","JPY","XDR","MNT"]
+        prices = requests.post(
+            f"{band_endpoint}/oracle/request_prices",
+            json={"symbols":symbol_list,"min_count":3,"ask_count":4}
+        ).json()['result']
+
+        for (symbol, price) in zip(symbol_list,prices):
+            if symbol == "XDR":
+                symbol = "SDR"
+            result_real_fx["USD"+symbol] = int(price['multiplier'],10) / int(price['px'],10)
+    except:
+        METRIC_OUTBOUND_ERROR.labels('band-fx').inc()
+        logger.exception("Error in def get_fx_rate_from_band")
+        err_flag = True
+
+    return err_flag, result_real_fx
+
 '''Option, receive sdr with paid service switch.
 # get real sdr rates
 @time_request('imf')
@@ -387,6 +415,34 @@ def get_fx_rate_free():
         result_real_fx = None
 
     return err_flag, result_real_fx
+
+
+# combine all fx rate from sources
+def combine_fx(res_fxs):
+    fx_combined = {
+        "USDUSD":[],
+        "USDKRW":[],
+        "USDEUR":[],
+        "USDCNY":[],
+        "USDJPY":[],
+        "USDSDR":[],
+        "USDMNT":[]
+    }
+    all_fx_err_flag = True
+    for res_fx in res_fxs:
+        err_flag, fx = res_fx.result()
+        all_fx_err_flag = all_fx_err_flag and err_flag
+        if not err_flag:
+            for key in fx_combined:
+                if key in fx:
+                    fx_combined[key].append(fx[key])
+    for key in fx_combined:
+        if len(fx_combined[key]) > 0:
+            fx_combined[key] = statistics.median(fx_combined[key])
+        else:
+            fx_combined[key] = None
+            all_fx_err_flag = True
+    return all_fx_err_flag, fx_combined
 
 # get coinone luna krw price
 @time_request('coinone')
@@ -531,6 +587,52 @@ def get_gdac_luna_price():
         luna_midprice_krw = 0
 
     return err_flag, luna_price, luna_base, luna_midprice_krw
+
+
+# get band luna krw price
+@time_request('band-luna')
+def get_band_luna_price():
+    coinone, bithumb, gdac, gopax = None, None, None, None
+    try:
+        oracle_script_id,multiplier,min_count,ask_count = [int(param,10) for param in band_luna_price_params.split(",")]
+        exchanges = ["coinone","bithumb","gdac","gopax"]
+        bandcli = Client(band_endpoint)
+        schema = bandcli.get_oracle_script(oracle_script_id).schema
+        obi = PyObi(schema)
+        result = obi.decode_output(
+            bandcli.get_latest_request(
+                oracle_script_id,
+                obi.encode_input({
+                    "exchanges":exchanges,
+                    "base_symbol":"LUNA",
+                    "quote_symbol":"KRW",
+                    "multiplier":multiplier
+                }),
+                min_count,
+                ask_count
+            ).result.response_packet_data.result
+        )
+        abms = []
+        for (order_book,ex) in zip(result['order_books'],exchanges):
+            abm = None
+            if order_book['ask'] > 0 and order_book['bid'] > 0 and order_book['mid'] > 0:
+                luna_price = {
+                    "base_currency": "ukrw",
+                    "exchange": f"band_{ex}",
+                    "askprice": order_book['ask']/multiplier,
+                    "bidprice": order_book['bid']/multiplier,
+                    "midprice": order_book['mid']/multiplier
+                }
+                luna_base = "USDKRW"
+                luna_midprice_krw = order_book['mid']/multiplier
+                abm = (luna_price, luna_base, luna_midprice_krw)
+            abms.append(abm)
+        coinone, bithumb, gdac, gopax = abms
+    except:
+        METRIC_OUTBOUND_ERROR.labels('band-luna').inc()
+        logger.exception("Error in get_band_luna_price")
+
+    return coinone, bithumb, gdac, gopax
 
 
 # get swap price
@@ -697,18 +799,23 @@ while True:
         all_err_flag = False
         ts = time.time()
 
+        fx_api_collection = {
+            "alphavantage": get_fx_rate,
+            "free_api": get_fx_rate_free,
+            "band": get_fx_rate_from_band
+        }
+
         with concurrent.futures.ThreadPoolExecutor() as executor:
             res_swap = executor.submit(get_swap_price)
-            res_fx = {}
-            if use_free_api:
-                res_fx = executor.submit(get_fx_rate_free)
-            else:
-                res_fx = executor.submit(get_fx_rate)
+            res_fxs = []
+            for fx_key in fx_api_option.split(","):
+                res_fxs.append( executor.submit(fx_api_collection[fx_key]))
             #res_sdr = executor.submit(get_sdr_rate) sdr receive Option
             res_coinone = executor.submit(get_coinone_luna_price)
             res_bithumb = executor.submit(get_bithumb_luna_price)
             res_gopax = executor.submit(get_gopax_luna_price)
             res_gdac = executor.submit(get_gdac_luna_price)
+            res_band = executor.submit(get_band_luna_price)
 
         def metrics_for_result(exchange, result):
             if result:
@@ -720,6 +827,10 @@ while True:
         metrics_for_result('bithumb', res_bithumb.result()[1])
         metrics_for_result('gopax', res_gopax.result()[1])
         metrics_for_result('res_gdac', res_gdac.result()[1])
+
+        for rb in res_band.result():
+            if rb:
+                metrics_for_result(rb[0]['exchange'], rb[0])
 
         # Get active set of denoms
         swap_price_err_flag, swap_price = res_swap.result()
@@ -736,12 +847,17 @@ while True:
 
         logger.info("Active set: {}".format(active))
 
-        fx_err_flag, real_fx = res_fx.result()
+        # combine fx from all sources
+        fx_err_flag, real_fx = combine_fx(res_fxs)
+
         #sdr_err_flag, sdr_rate = res_sdr.result() sdr receive Option
         coinone_err_flag, coinone_luna_price, coinone_luna_base, coinone_luna_midprice_krw = res_coinone.result()
         bithumb_err_flag, bithumb_luna_price, bithumb_luna_base, bithumb_luna_midprice_krw = res_bithumb.result()
         gopax_err_flag, gopax_luna_price, gopax_luna_base, gopax_luna_midprice_krw = res_gopax.result()
         gdac_err_flag, gdac_luna_price, gdac_luna_base, gdac_luna_midprice_krw = res_gdac.result()
+
+        # extract backup luna price from band
+        coinone_backup, bithumb_backup, gdac_backup, gopax_backup = res_band.result()
 
         coinone_share = coinone_share_default
         bithumb_share = bithumb_share_default
@@ -752,14 +868,28 @@ while True:
         if fx_err_flag or sdr_err_flag or coinone_err_flag or swap_price_err_flag:
             all_err_flag = True
         '''
-        if fx_err_flag or coinone_err_flag or swap_price_err_flag:
+        if fx_err_flag:
             all_err_flag = True
+        if coinone_err_flag or swap_price_err_flag:
+            if coinone_backup is None:
+                all_err_flag = True
+            else:
+                coinone_luna_price, coinone_luna_base, coinone_luna_midprice_krw = coinone_backup
         if bithumb_err_flag:
-            bithumb_share = 0
+            if bithumb_backup is None:
+                bithumb_share = 0
+            else:
+                bithumb_luna_price, bithumb_luna_base, bithumb_luna_midprice_krw = bithumb_backup
         if gopax_err_flag:
-            gopax_share = 0
+            if gdac_backup is None:
+                gopax_share = 0
+            else:
+                gopax_luna_price, gopax_luna_base, gopax_luna_midprice_krw = gopax_backup
         if gdac_err_flag:
-            gdac_share = 0
+            if gopax_backup is None:
+                gdac_share = 0
+            else:
+                gdac_luna_price, gdac_luna_base, gdac_luna_midprice_krw = gdac_backup
 
         if not all_err_flag:
             #real_fx["USDSDR"] = float(sdr_rate) sdr receive Option
