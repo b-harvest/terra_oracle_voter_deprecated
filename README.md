@@ -45,13 +45,16 @@ bithumb_share_default = 0 # default bithumb weight for averaging oracle price\
 gopax_share_default = 0 # default gopax weight for averaging oracle price\
 gdac_share_default = 0 # default gdac weight for averaging oracle price\
 price_divergence_alert = False # alert when exchange prices diverge\
-vwma_period = 3*600 # period for volume weight moving average of coinone price in seconds
+vwma_period = 3*600 # period for volume weight moving average of coinone price in seconds\
+band_endpoint = "https://poa-api.bandchain.org" # an end-point to bandprotocol query node\
+band_luna_price_params = "19,1_000_000,3,4" # A set of parameters for query a specific request on BandChain which is consist of 4 values (oracle_script_id,multiplier,min_count,ask_count)\
+fx_api_option = "alphavantage,free_api,band" # A list of fx price data sources where results from each source in the list are taken to find the median.
 
 ### parameters
 fx_map = {"uusd":"USDUSD","ukrw":"USDKRW","usdr":"USDSDR","umnt":"USDMNT"}\
 active_candidate = ["uusd","ukrw","usdr","umnt"] # candidate for active denom set\
 hardfix_active_set = ["uusd","ukrw","usdr","umnt"] # hardfix the active set. does not care last oracle price availability\
-chain_id = "columbus-4" # chain id\
+chain_id = "columbus-4" # chain id
 round_block_num = 5.0 # number of blocks for each oracle round
 
 ### Systemctl
