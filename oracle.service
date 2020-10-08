@@ -25,7 +25,7 @@ Environment=HOME_CLI=/path/to/.terracli
 Environment=NODE_RPC=tcp://127.0.0.1:26657
 Environment=TERRACLI_BIN=/path/to/terracli
 Environment=TERRA_LCD=
-Environment=CHAIN_ID=tequila-0004
+Environment=CHAIN_ID=columbus-4
 Environment=MISS_ALERTS=true
 Environment=MISSES=0
 Environment=PRICE_ALERTS=true
