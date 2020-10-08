@@ -232,7 +232,6 @@ def get_my_current_prevotes():
         logging.exception("Error in get_my_current_prevotes")
         return False
 
-
 # get latest block info
 @time_request('lcd')
 def get_latest_block():
@@ -249,6 +248,25 @@ def get_latest_block():
         latest_block_time = None
 
     return err_flag, latest_block_height, latest_block_time
+
+'''Option, receive sdr with paid service switch.
+# get real sdr rates
+@time_request('imf')
+def get_sdr_rate():
+    err_flag = False
+    try:
+        # get sdr
+        url = "https://www.imf.org/external/np/fin/data/rms_five.aspx?tsvflag=Y"
+        data = session.get(url, timeout=http_timeout).text
+        result_sdr_rate = next(filter(lambda x: x.startswith("U.S. dollar"),
+                                      data.splitlines())).split('\t')[2]
+    except:
+        METRIC_OUTBOUND_ERROR.labels('imf').inc()
+        logging.exception("Error in get_sdr_rate")
+        err_flag = True
+        result_sdr_rate = None
+    return err_flag, result_sdr_rate
+'''
 
 # get currency rate async def
 async def fx_for(symbol_to):
@@ -329,6 +347,7 @@ def get_fx_rate():
 
     return err_flag, result_real_fx
 
+#"fx_for" has been merged.
 @time_request('band-fx')
 def get_fx_rate_from_band():
     err_flag = False
@@ -351,26 +370,6 @@ def get_fx_rate_from_band():
         err_flag = True
 
     return err_flag, result_real_fx
-
-'''Option, receive sdr with paid service switch.
-# get real sdr rates
-@time_request('imf')
-def get_sdr_rate():
-    err_flag = False
-    try:
-        # get sdr
-        url = "https://www.imf.org/external/np/fin/data/rms_five.aspx?tsvflag=Y"
-        data = session.get(url, timeout=http_timeout).text
-        result_sdr_rate = next(filter(lambda x: x.startswith("U.S. dollar"),
-                                      data.splitlines())).split('\t')[2]
-    except:
-        METRIC_OUTBOUND_ERROR.labels('imf').inc()
-        logging.exception("Error in get_sdr_rate")
-        err_flag = True
-        result_sdr_rate = None
-    return err_flag, result_sdr_rate
-'''
-
 
 # get real fx rates
 @time_request('exchangerateapi')
