@@ -54,7 +54,7 @@ fx_api_option = "alphavantage,free_api,band" # A list of fx price data sources w
 fx_map = {"uusd":"USDUSD","ukrw":"USDKRW","usdr":"USDSDR","umnt":"USDMNT"}\
 active_candidate = ["uusd","ukrw","usdr","umnt"] # candidate for active denom set\
 hardfix_active_set = ["uusd","ukrw","usdr","umnt"] # hardfix the active set. does not care last oracle price availability\
-chain_id = "columbus-4" # chain id
+chain_id = "columbus-4" # chain id\
 round_block_num = 5.0 # number of blocks for each oracle round
 
 ### Systemctl
