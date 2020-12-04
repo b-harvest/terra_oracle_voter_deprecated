@@ -59,7 +59,7 @@ node = os.getenv("NODE_RPC", "tcp://127.0.0.1:26657")
 # path to terracli binary
 terracli = os.getenv("TERRACLI_BIN", "sudo /home/ubuntu/go/bin/terracli")
 # lcd to receive swap price information
-lcd_address = os.getenv("TERRA_LCD", "https://lcd.terra.dev/")
+lcd_address = os.getenv("TERRA_LCD", "https://lcd.terra.dev")
 # default coinone weight
 coinone_share_default = float(os.getenv("COINONE_SHARE_DEFAULT", "1.0"))
 # default bithumb weight
