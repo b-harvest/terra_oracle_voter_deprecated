@@ -34,3 +34,4 @@ active_candidate = ["uusd","ukrw","usdr","umnt"] # candidate for active denom se
 hardfix_active_set = ["uusd","ukrw","usdr","umnt"] # hardfix the active set. does not care last oracle price availability\
 chain_id = "columbus-2" # chain id\
 round_block_num = 10.0 # number of blocks for each oracle round
+test
