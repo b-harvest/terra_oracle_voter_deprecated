@@ -96,13 +96,15 @@ fx_map = {
     "uusd": "USDUSD",
     "ukrw": "USDKRW",
     "usdr": "USDSDR",
-    "umnt": "USDMNT"
+    "umnt": "USDMNT",
+    "ueur": "USDEUR"
 }
 active_candidate = [
     "uusd",
     "ukrw",
     "usdr",
-    "umnt"
+    "umnt",
+    "ueur"
 ]
 
 # hardfix the active set. does not care about stop_oracle_trigger_recent_diverge
@@ -110,7 +112,8 @@ hardfix_active_set = [
     "uusd",
     "ukrw",
     "usdr",
-    "umnt"
+    "umnt",
+    "ueur"
 ]
 
 # denoms for abstain votes. it will vote abstain for all denoms in this list.
