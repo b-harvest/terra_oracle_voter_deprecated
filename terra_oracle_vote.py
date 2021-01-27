@@ -313,12 +313,21 @@ def get_fx_rate():
     err_flag = False
     try:
         # get currency rate
-        symbol_list = ["KRW",
-                "EUR",
-                "CNY",
-                "JPY",
-                "XDR",
-                "MNT"]
+        symbol_list = [
+            "KRW",
+            "EUR",
+            "CNY",
+            "JPY",
+            "XDR",
+            "MNT",
+            "GBP",
+            "INR",
+            "CAD",
+            "CHF",
+            "HKD",
+            "AUD",
+            "SGD"
+        ]
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -332,7 +341,14 @@ def get_fx_rate():
             "USDCNY": 1.0,
             "USDJPY": 1.0,
             "USDSDR": 1.0,
-            "USDMNT": 1.0
+            "USDMNT": 1.0,
+            "USDGBP": 1.0,
+            "USDINR": 1.0,
+            "USDCAD": 1.0,
+            "USDCHF": 1.0,
+            "USDHKD": 1.0,
+            "USDAUD": 1.0,
+            "USDSGD": 1.0
         }
 
         list_number = 0
@@ -357,7 +373,7 @@ def get_fx_rate_from_band():
     result_real_fx = None
     try:
         result_real_fx = {"USDUSD": 1.0}
-        symbol_list = ["KRW","EUR","CNY","JPY","XDR","MNT"]
+        symbol_list = ["KRW","EUR","CNY","JPY","XDR","MNT","GBP","INR","CAD","CHF","HKD","AUD","SGD"]
         prices = requests.post(
             f"{band_endpoint}/oracle/request_prices",
             json={"symbols":symbol_list,"min_count":3,"ask_count":4}
@@ -380,12 +396,21 @@ def get_fx_rate_free():
     err_flag = False
     try:
         # get currency rate
-        symbol_list = ["KRW",
-                "EUR",
-                "CNY",
-                "JPY",
-                "XDR",
-                "MNT"]
+        symbol_list = [
+            "KRW",
+            "EUR",
+            "CNY",
+            "JPY",
+            "XDR",
+            "MNT",
+            "GBP",
+            "INR",
+            "CAD",
+            "CHF",
+            "HKD",
+            "AUD",
+            "SGD"
+        ]
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -399,7 +424,14 @@ def get_fx_rate_free():
             "USDCNY": 1.0,
             "USDJPY": 1.0,
             "USDSDR": 1.0,
-            "USDMNT": 1.0
+            "USDMNT": 1.0,
+            "USDGBP": 1.0,
+            "USDINR": 1.0,
+            "USDCAD": 1.0,
+            "USDCHF": 1.0,
+            "USDHKD": 1.0,
+            "USDAUD": 1.0,
+            "USDSGD": 1.0
         }
 
         list_number = 0
@@ -428,7 +460,14 @@ def combine_fx(res_fxs):
         "USDCNY":[],
         "USDJPY":[],
         "USDSDR":[],
-        "USDMNT":[]
+        "USDMNT":[],
+        "USDGBP":[],
+        "USDINR":[],
+        "USDCAD":[],
+        "USDCHF":[],
+        "USDHKD":[],
+        "USDAUD":[],
+        "USDSGD":[]
     }
     all_fx_err_flag = True
     for res_fx in res_fxs:
