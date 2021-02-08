@@ -27,6 +27,7 @@ import aiohttp
 import statistics
 from pyband.obi import PyObi
 from pyband.client import Client
+import binance.client
 
 # User setup
 
@@ -36,6 +37,9 @@ telegram_token = os.getenv("TELEGRAM_TOKEN", "")
 telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
 # https://www.alphavantage.co/
 alphavantage_key = os.getenv("ALPHAVANTAGE_KEY", "")
+# https://python-binance.readthedocs.io/
+binance_key = os.getenv("BINANCE_KEY","")
+binance_secret = os.getenv("BINANCE_SECRET","")
 # no using alphavantage
 fx_api_option = os.getenv("FX_API_OPTION", "alphavantage,free_api,band")
 # stop oracle when price change exceeds stop_oracle_trigger
@@ -91,6 +95,9 @@ METRIC_EXCHANGE_BID_PRICE = Gauge("terra_oracle_exchange_bid_price", "Exchange b
 METRIC_OUTBOUND_ERROR = Counter("terra_oracle_request_errors", "Outbound HTTP request error count", ["remote"])
 METRIC_OUTBOUND_LATENCY = Histogram("terra_oracle_request_latency", "Outbound HTTP request latency", ["remote"])
 
+
+#  binance client
+binance_client = binance.client.Client(binance_key, binance_secret)
 # parameters
 fx_map = {
     "uusd": "USDUSD",
@@ -512,6 +519,25 @@ def combine_fx(res_fxs):
             all_fx_err_flag = True
     return all_fx_err_flag, fx_combined
 
+# get binance luna usdt price
+def get_binance_luna_price():
+    err_flag = False
+    try:
+        client = binance_client
+        if client is None:
+            client = binance.client.Client(binance_key, binance_secret)
+        avg_price = client.get_avg_price(symbol='LUNAUSDT')
+        s1 = json.dumps(avg_price)
+        response_dict = json.loads(s1)
+        luna_price = response_dict["price"]
+        logger.exception(luna_price)
+    except:
+        logger.exception("Error in get_binance_luna_price")
+        err_flag = True
+        luna_price = None
+
+    return err_flag, luna_price
+    
 # get coinone luna krw price
 @time_request('coinone')
 def get_coinone_luna_price():
@@ -884,6 +910,7 @@ while True:
             res_gopax = executor.submit(get_gopax_luna_price)
             res_gdac = executor.submit(get_gdac_luna_price)
             res_band = executor.submit(get_band_luna_price)
+            res_binance = executor.submit(get_binance_luna_price)
 
         def metrics_for_result(exchange, result):
             if result:
@@ -923,7 +950,7 @@ while True:
         bithumb_err_flag, bithumb_luna_price, bithumb_luna_base, bithumb_luna_midprice_krw = res_bithumb.result()
         gopax_err_flag, gopax_luna_price, gopax_luna_base, gopax_luna_midprice_krw = res_gopax.result()
         gdac_err_flag, gdac_luna_price, gdac_luna_base, gdac_luna_midprice_krw = res_gdac.result()
-
+        binance_err_flag, binance_luna_price = res_binance.result()
         # extract backup luna price from band
         coinone_backup, bithumb_backup, gdac_backup, gopax_backup = res_band.result()
 
@@ -931,7 +958,6 @@ while True:
         bithumb_share = bithumb_share_default
         gopax_share = gopax_share_default
         gdac_share = gdac_share_default
-
         '''sdr receive Option
         if fx_err_flag or sdr_err_flag or coinone_err_flag or swap_price_err_flag:
             all_err_flag = True
@@ -1042,8 +1068,14 @@ while True:
                 swap_price_compare = []
 
                 for currency in active:
-                    market_price = float(luna_midprice_krw * (real_fx[fx_map[currency]] / real_fx[luna_base]))
+                    market_price = float(binance_luna_price) * real_fx[fx_map[currency]]
                     this_swap_price = 0.00000001
+                    
+                    if currency == "ukrw":
+                        luna_binance_usdttokrw = float(binance_luna_price) * real_fx[luna_base]
+                        luna_midprice_krw_binance_avg = float((luna_midprice_krw + luna_binance_usdttokrw)/2)
+                        market_price = float(luna_midprice_krw_binance_avg * (real_fx[fx_map[currency]] / real_fx[luna_base]))
+
 
                     for denom in swap_price["result"]:
                         if denom["denom"] == currency:
