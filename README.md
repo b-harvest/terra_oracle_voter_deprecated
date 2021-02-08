@@ -46,9 +46,9 @@ gopax_share_default = 0 # default gopax weight for averaging oracle price\
 gdac_share_default = 0 # default gdac weight for averaging oracle price\
 price_divergence_alert = False # alert when exchange prices diverge\
 vwma_period = 3*600 # period for volume weight moving average of coinone price in seconds\
-band_endpoint = "https://poa-api.bandchain.org" # an end-point to bandprotocol query node\
-band_luna_price_params = "19,1_000_000,3,4" # A set of parameters for query a specific request on BandChain which is consist of 4 values (oracle_script_id,multiplier,min_count,ask_count)\
-fx_api_option = "alphavantage,free_api,band" # A list of fx price data sources where results from each source in the list are taken to find the median.\
+band_endpoint = "https://rpc.bandchain.org" # an end-point to bandprotocol query node\
+band_luna_price_params = "13,1_000_000_000,10,16" # A set of parameters for query a specific request on BandChain which is consist of 4 values (oracle_script_id,multiplier,min_count,ask_count)\
+fx_api_option = "alphavantage,free_api,band" # A list of fx price data sources where results from each source in the list are taken to find the median.
 BINANCE_KEY= BINANCE account api_key(read only)\
 BINANCE_SECRET= BINANCE account api_secret(read only)
 
