@@ -1,2 +1,4 @@
 /tx_oracle_*
 .idea
+/venv
+/.vscode

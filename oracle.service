@@ -41,8 +41,8 @@ Environment=GOPAX_SHARE_DEFAULT=0.0
 Environment=GDAC_SHARE_DEFAULT=0.0
 Environment=BITHUMB_SHARE_DEFAULT=0.0
 Environment=DEBUG=true
-Environment=BAND_ENDPOINT=https://poa-api.bandchain.org
-Environment=BAND_LUNA_PRICE_PARAMS=19,1_000_000,3,4
+Environment=BAND_ENDPOINT=https://rpc.bandchain.org
+Environment=BAND_LUNA_PRICE_PARAMS=13,1_000_000_000,10,16
 
 
 [Install]
