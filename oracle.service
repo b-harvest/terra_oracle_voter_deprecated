@@ -14,6 +14,8 @@ RestartSec=3
 Environment=TELEGRAM_TOKEN=
 Environment=TELEGRAM_CHAT_ID=
 Environment=FCSAPI_KEY=
+Environment=BINANCE_KEY=
+Environment=BINANCE_SECRET=
 Environment=ALPHAVANTAGE_KEY=
 #options alphavantage,free_api,band
 Environment=FX_API_OPTION=alphavantage,free_api,band
