@@ -78,7 +78,7 @@ misses = int(os.getenv("MISSES", "0"))
 alertmisses = os.getenv("MISS_ALERTS", "true") == "true"
 debug = os.getenv("DEBUG", "false") == "true"
 metrics_port = os.getenv("METRICS_PORT", "19000")
-band_endpoint = os.getenv("BAND_ENDPOINT", "https://rpc.bandchain.org")
+band_endpoint = os.getenv("BAND_ENDPOINT", "https://terra-lcd.bandchain.org")
 band_luna_price_params = os.getenv("BAND_LUNA_PRICE_PARAMS", "13,1_000_000_000,10,16")
 
 METRIC_MISSES = Gauge("terra_oracle_misses_total", "Total number of oracle misses")
