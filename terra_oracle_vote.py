@@ -410,7 +410,7 @@ def get_fx_rate_from_band():
         symbol_list = ["KRW","EUR","CNY","JPY","XDR","MNT","GBP","INR","CAD","CHF","HKD","AUD","SGD"]
         prices = requests.post(
             f"{band_endpoint}/oracle/request_prices",
-            json={"symbols":symbol_list,"min_count":10,"ask_count":16}
+            json={"symbols": symbol_list, "min_count": 10,"ask_count": 16}
         ).json()['result']
 
         for (symbol, price) in zip(symbol_list,prices):
@@ -718,11 +718,12 @@ def get_band_luna_price():
                 luna_midprice_krw = order_book['mid']/multiplier
                 abm = (luna_price, luna_base, luna_midprice_krw)
             abms.append(abm)
-        return abms
+        coinone, bithumb, gdac, gopax = abms
     except:
         METRIC_OUTBOUND_ERROR.labels('band-luna').inc()
         logger.exception("Error in get_band_luna_price")
 
+    return coinone, bithumb, gdac, gopax
 
 # get swap price
 @time_request('lcd')
