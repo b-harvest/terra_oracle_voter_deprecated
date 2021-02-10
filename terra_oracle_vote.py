@@ -537,7 +537,7 @@ def get_binance_luna_price():
         luna_price = None
 
     return err_flag, luna_price
-    
+
 # get coinone luna krw price
 @time_request('coinone')
 def get_coinone_luna_price():
@@ -686,7 +686,7 @@ def get_gdac_luna_price():
 # get band luna krw price
 @time_request('band-luna')
 def get_band_luna_price():
-    coinone, bithumb, gdac, gopax = None, None, None, None
+    binance, coinone, bithumb, gdac, gopax = None, None, None, None, None
     try:
         oracle_script_id, multiplier, min_count, ask_count = [int(param, 10) for param in band_luna_price_params.split(",")]
         bandcli = Client(band_endpoint)
@@ -703,8 +703,8 @@ def get_band_luna_price():
             ).result.response_packet_data.result
         )
         abms = []
-        exchanges = ["coinone", "bithumb", "gdac", "gopax"]
-        for (order_book,ex) in zip(result['prices'][2:], exchanges):
+        exchanges = ["binance", "huobipro", "coinone", "bithumb", "gdac", "gopax"]
+        for (order_book,ex) in zip(result['prices'], exchanges):
             abm = None
             if order_book['ask'] > 0 and order_book['bid'] > 0 and order_book['mid'] > 0:
                 luna_price = {
@@ -718,12 +718,12 @@ def get_band_luna_price():
                 luna_midprice_krw = order_book['mid']/multiplier
                 abm = (luna_price, luna_base, luna_midprice_krw)
             abms.append(abm)
-        coinone, bithumb, gdac, gopax = abms
+        binance, _, coinone, bithumb, gdac, gopax = abms
     except:
         METRIC_OUTBOUND_ERROR.labels('band-luna').inc()
         logger.exception("Error in get_band_luna_price")
 
-    return coinone, bithumb, gdac, gopax
+    return binance, coinone, bithumb, gdac, gopax
 
 # get swap price
 @time_request('lcd')
@@ -947,8 +947,9 @@ while True:
         gopax_err_flag, gopax_luna_price, gopax_luna_base, gopax_luna_midprice_krw = res_gopax.result()
         gdac_err_flag, gdac_luna_price, gdac_luna_base, gdac_luna_midprice_krw = res_gdac.result()
         binance_err_flag, binance_luna_price = res_binance.result()
+
         # extract backup luna price from band
-        coinone_backup, bithumb_backup, gdac_backup, gopax_backup = res_band.result()
+        binance_backup, coinone_backup, bithumb_backup, gdac_backup, gopax_backup = res_band.result()
 
         coinone_share = coinone_share_default
         bithumb_share = bithumb_share_default
@@ -980,6 +981,11 @@ while True:
                 gdac_share = 0
             else:
                 gdac_luna_price, gdac_luna_base, gdac_luna_midprice_krw = gdac_backup
+
+        if binance_err_flag:
+            if binance_backup is not None:
+                _, luna_base, band_luna_price = binance_backup
+                binance_luna_price = band_luna_price / real_fx[luna_base] # convert to USD
 
         if not all_err_flag:
             #real_fx["USDSDR"] = float(sdr_rate) sdr receive Option
@@ -1066,7 +1072,7 @@ while True:
                 for currency in active:
                     market_price = float(binance_luna_price) * real_fx[fx_map[currency]]
                     this_swap_price = 0.00000001
-                    
+
                     if currency == "ukrw":
                         luna_binance_usdttokrw = float(binance_luna_price) * real_fx[luna_base]
                         luna_midprice_krw_binance_avg = float((luna_midprice_krw + luna_binance_usdttokrw)/2)
