@@ -78,8 +78,8 @@ misses = int(os.getenv("MISSES", "0"))
 alertmisses = os.getenv("MISS_ALERTS", "true") == "true"
 debug = os.getenv("DEBUG", "false") == "true"
 metrics_port = os.getenv("METRICS_PORT", "19000")
-band_endpoint = os.getenv("BAND_ENDPOINT", "https://poa-api.bandchain.org")
-band_luna_price_params = os.getenv("BAND_LUNA_PRICE_PARAMS", "19,1_000_000,3,4")
+band_endpoint = os.getenv("BAND_ENDPOINT", "https://terra-lcd.bandchain.org")
+band_luna_price_params = os.getenv("BAND_LUNA_PRICE_PARAMS", "13,1_000_000_000,10,16")
 
 METRIC_MISSES = Gauge("terra_oracle_misses_total", "Total number of oracle misses")
 METRIC_HEIGHT = Gauge("terra_oracle_height", "Block height of the LCD node")
@@ -323,7 +323,7 @@ async def fx_for(symbol_to):
             return api_result
     except:
             print("for_fx_error")
-            
+
 # get currency rate async def
 async def fx_for_free(symbol_to):
     try:
@@ -391,7 +391,7 @@ def get_fx_rate():
                 symbol = "SDR"
             result_real_fx["USD"+symbol] = float(
                 api_result[list_number]["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
-            list_number = list_number +1 
+            list_number = list_number +1
     except:
         METRIC_OUTBOUND_ERROR.labels('alphavantage').inc()
         logger.exception("Error in get_fx_rate")
@@ -410,7 +410,7 @@ def get_fx_rate_from_band():
         symbol_list = ["KRW","EUR","CNY","JPY","XDR","MNT","GBP","INR","CAD","CHF","HKD","AUD","SGD"]
         prices = requests.post(
             f"{band_endpoint}/oracle/request_prices",
-            json={"symbols":symbol_list,"min_count":3,"ask_count":4}
+            json={"symbols": symbol_list, "min_count": 10,"ask_count": 16}
         ).json()['result']
 
         for (symbol, price) in zip(symbol_list,prices):
@@ -475,7 +475,7 @@ def get_fx_rate_free():
                 fx_symbol = "USDSDR"
             result_real_fx[fx_symbol] = float(
                 api_result[list_number]["rates"][symbol])
-            list_number = list_number +1 
+            list_number = list_number +1
     except:
         METRIC_OUTBOUND_ERROR.labels('exchangerateapi').inc()
         logger.exception("Error in get_fx_rate_free")
@@ -537,7 +537,7 @@ def get_binance_luna_price():
         luna_price = None
 
     return err_flag, luna_price
-    
+
 # get coinone luna krw price
 @time_request('coinone')
 def get_coinone_luna_price():
@@ -686,10 +686,9 @@ def get_gdac_luna_price():
 # get band luna krw price
 @time_request('band-luna')
 def get_band_luna_price():
-    coinone, bithumb, gdac, gopax = None, None, None, None
+    binance, coinone, bithumb, gdac, gopax = None, None, None, None, None
     try:
-        oracle_script_id,multiplier,min_count,ask_count = [int(param,10) for param in band_luna_price_params.split(",")]
-        exchanges = ["coinone","bithumb","gdac","gopax"]
+        oracle_script_id, multiplier, min_count, ask_count = [int(param, 10) for param in band_luna_price_params.split(",")]
         bandcli = Client(band_endpoint)
         schema = bandcli.get_oracle_script(oracle_script_id).schema
         obi = PyObi(schema)
@@ -697,17 +696,15 @@ def get_band_luna_price():
             bandcli.get_latest_request(
                 oracle_script_id,
                 obi.encode_input({
-                    "exchanges":exchanges,
-                    "base_symbol":"LUNA",
-                    "quote_symbol":"KRW",
-                    "multiplier":multiplier
+                    "multiplier": multiplier
                 }),
                 min_count,
                 ask_count
             ).result.response_packet_data.result
         )
         abms = []
-        for (order_book,ex) in zip(result['order_books'],exchanges):
+        exchanges = ["binance", "huobipro", "coinone", "bithumb", "gdac", "gopax"]
+        for (order_book,ex) in zip(result['prices'], exchanges):
             abm = None
             if order_book['ask'] > 0 and order_book['bid'] > 0 and order_book['mid'] > 0:
                 luna_price = {
@@ -721,13 +718,12 @@ def get_band_luna_price():
                 luna_midprice_krw = order_book['mid']/multiplier
                 abm = (luna_price, luna_base, luna_midprice_krw)
             abms.append(abm)
-        coinone, bithumb, gdac, gopax = abms
+        binance, _, coinone, bithumb, gdac, gopax = abms
     except:
         METRIC_OUTBOUND_ERROR.labels('band-luna').inc()
         logger.exception("Error in get_band_luna_price")
 
-    return coinone, bithumb, gdac, gopax
-
+    return binance, coinone, bithumb, gdac, gopax
 
 # get swap price
 @time_request('lcd')
@@ -951,8 +947,9 @@ while True:
         gopax_err_flag, gopax_luna_price, gopax_luna_base, gopax_luna_midprice_krw = res_gopax.result()
         gdac_err_flag, gdac_luna_price, gdac_luna_base, gdac_luna_midprice_krw = res_gdac.result()
         binance_err_flag, binance_luna_price = res_binance.result()
+
         # extract backup luna price from band
-        coinone_backup, bithumb_backup, gdac_backup, gopax_backup = res_band.result()
+        binance_backup, coinone_backup, bithumb_backup, gdac_backup, gopax_backup = res_band.result()
 
         coinone_share = coinone_share_default
         bithumb_share = bithumb_share_default
@@ -984,6 +981,11 @@ while True:
                 gdac_share = 0
             else:
                 gdac_luna_price, gdac_luna_base, gdac_luna_midprice_krw = gdac_backup
+
+        if binance_err_flag:
+            if binance_backup is not None:
+                _, luna_base, band_luna_price = binance_backup
+                binance_luna_price = band_luna_price / real_fx[luna_base] # convert to USD
 
         if not all_err_flag:
             #real_fx["USDSDR"] = float(sdr_rate) sdr receive Option
@@ -1070,7 +1072,7 @@ while True:
                 for currency in active:
                     market_price = float(binance_luna_price) * real_fx[fx_map[currency]]
                     this_swap_price = 0.00000001
-                    
+
                     if currency == "ukrw":
                         luna_binance_usdttokrw = float(binance_luna_price) * real_fx[luna_base]
                         luna_midprice_krw_binance_avg = float((luna_midprice_krw + luna_binance_usdttokrw)/2)
@@ -1147,7 +1149,7 @@ while True:
                 this_price[denom] = str("{0:.18f}".format(float(0)))
                 this_salt[denom] = get_salt(str(time.time()))
                 this_hash[denom] = get_hash(this_salt[denom], this_price[denom], denom, validator)
-        
+
         # vote abstain(0) for all denoms in abstain_set
         for denom in abstain_set:
             this_price[denom] = str("{0:.18f}".format(float(0)))
