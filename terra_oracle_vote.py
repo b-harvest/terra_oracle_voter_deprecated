@@ -412,7 +412,7 @@ def get_fx_rate_from_band():
     result_real_fx = None
     try:
         result_real_fx = {"USDUSD": 1.0}
-        symbol_list = ["KRW","EUR","CNY","JPY","XDR","MNT","GBP","INR","CAD","CHF","HKD","AUD","SGD","THB"]
+        symbol_list = ["KRW","EUR","CNY","JPY","XDR","MNT","GBP","INR","CAD","CHF","HKD","AUD","SGD"]
         prices = requests.post(
             f"{band_endpoint}/oracle/request_prices",
             json={"symbols": symbol_list, "min_count": 10,"ask_count": 16}
