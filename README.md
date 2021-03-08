@@ -53,9 +53,9 @@ BINANCE_KEY= BINANCE account api_key(read only)\
 BINANCE_SECRET= BINANCE account api_secret(read only)
 
 ### parameters
-fx_map = {"uusd": "USDUSD","ukrw": "USDKRW","usdr": "USDSDR","umnt": "USDMNT","ueur": "USDEUR","ujpy": "USDJPY","ugbp": "USDGBP","uinr": "USDINR","ucad": USDCAD","uchf": "USDCHF","uhkd": "USDHKD","uaud": "USDAUD","usgd": "USDSGD","ucny":"USDCNY",}\
-active_candidate = ["uusd","ukrw","usdr","umnt","ueur","ujpy","ugbp","uinr","ucad","uchf","uhkd","uaud","usgd","ucny"] # candidate for active denom set\
-hardfix_active_set = ["uusd","ukrw","usdr","umnt","ueur","ujpy","ugbp","uinr","ucad","uchf","uhkd","uaud","usgd","ucny"] # hardfix the active set. does not care last oracle price availability\
+fx_map = {"uusd": "USDUSD","ukrw": "USDKRW","usdr": "USDSDR","umnt": "USDMNT","ueur": "USDEUR","ujpy": "USDJPY","ugbp": "USDGBP","uinr": "USDINR","ucad": USDCAD","uchf": "USDCHF","uhkd": "USDHKD","uaud": "USDAUD","usgd": "USDSGD","ucny":"USDCNY","uthb":"USDTHB"}\
+active_candidate = ["uusd","ukrw","usdr","umnt","ueur","ujpy","ugbp","uinr","ucad","uchf","uhkd","uaud","usgd","ucny","uthb"] # candidate for active denom set\
+hardfix_active_set = ["uusd","ukrw","usdr","umnt","ueur","ujpy","ugbp","uinr","ucad","uchf","uhkd","uaud","usgd","ucny","uthb"] # hardfix the active set. does not care last oracle price availability\
 chain_id = "columbus-4" # chain id\
 round_block_num = 5.0 # number of blocks for each oracle round
 
