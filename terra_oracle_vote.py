@@ -114,6 +114,7 @@ fx_map = {
     "uaud": "USDAUD",
     "usgd": "USDSGD",
     "ucny": "USDCNY",
+    "uthb": "USDTHB",
 }
 active_candidate = [
     "uusd",
@@ -130,6 +131,7 @@ active_candidate = [
     "uaud",
     "usgd",
     "ucny",
+    "uthb",
 ]
 
 # hardfix the active set. does not care about stop_oracle_trigger_recent_diverge
@@ -148,6 +150,7 @@ hardfix_active_set = [
     "uaud",
     "usgd",
     "ucny",
+    "uthb",
 ]
 
 # denoms for abstain votes. it will vote abstain for all denoms in this list.
@@ -360,7 +363,8 @@ def get_fx_rate():
             "CHF",
             "HKD",
             "AUD",
-            "SGD"
+            "SGD",
+            "THB",
         ]
 
         loop = asyncio.new_event_loop()
@@ -382,7 +386,8 @@ def get_fx_rate():
             "USDCHF": 1.0,
             "USDHKD": 1.0,
             "USDAUD": 1.0,
-            "USDSGD": 1.0
+            "USDSGD": 1.0,
+            "USDTHB": 1.0,
         }
 
         list_number = 0
@@ -407,7 +412,7 @@ def get_fx_rate_from_band():
     result_real_fx = None
     try:
         result_real_fx = {"USDUSD": 1.0}
-        symbol_list = ["KRW","EUR","CNY","JPY","XDR","MNT","GBP","INR","CAD","CHF","HKD","AUD","SGD"]
+        symbol_list = ["KRW","EUR","CNY","JPY","XDR","MNT","GBP","INR","CAD","CHF","HKD","AUD","SGD","THB"]
         prices = requests.post(
             f"{band_endpoint}/oracle/request_prices",
             json={"symbols": symbol_list, "min_count": 10,"ask_count": 16}
@@ -443,7 +448,8 @@ def get_fx_rate_free():
             "CHF",
             "HKD",
             "AUD",
-            "SGD"
+            "SGD",
+            "THB",
         ]
 
         loop = asyncio.new_event_loop()
@@ -465,7 +471,8 @@ def get_fx_rate_free():
             "USDCHF": 1.0,
             "USDHKD": 1.0,
             "USDAUD": 1.0,
-            "USDSGD": 1.0
+            "USDSGD": 1.0,
+            "USDTHB": 1.0,
         }
 
         list_number = 0
@@ -501,7 +508,8 @@ def combine_fx(res_fxs):
         "USDCHF":[],
         "USDHKD":[],
         "USDAUD":[],
-        "USDSGD":[]
+        "USDSGD":[],
+        "USDTHB":[],
     }
     all_fx_err_flag = True
     for res_fx in res_fxs:
